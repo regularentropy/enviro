@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36511.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "enviro", "enviro.csproj", "{22ACE72B-4FA0-445B-BF27-581460A130CC}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{22ACE72B-4FA0-445B-BF27-581460A130CC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{22ACE72B-4FA0-445B-BF27-581460A130CC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{22ACE72B-4FA0-445B-BF27-581460A130CC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{22ACE72B-4FA0-445B-BF27-581460A130CC}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {48F2C676-1144-4137-A476-FAA46E2600F3}
+	EndGlobalSection
+EndGlobal

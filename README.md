@@ -1,6 +1,6 @@
 ﻿# Enviro
-[![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg)]()
-[![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)]()
+[![.NET](https://img.shields.io/badge/.NET-10-blue.svg)]()
+[![Platform](https://img.shields.io/badge/platform-Windows-blue.svg)]()
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 A lightweight environment variable manager for Windows with a classic interface.
@@ -25,8 +25,8 @@ Enviro addresses these issues with a classic Windows interface and a change trac
 
 ## Requirements
 
-- Windows 7 or later
-- .NET 8
+- Windows 10 or later
+- .NET 10
 - Administrator privileges (only for system variable modifications)
 
 ## Usage
@@ -50,8 +50,8 @@ For system-wide variable editing, run as administrator or allow elevation when p
 Pull requests are welcome. For major changes, open an issue first to discuss what you want to change.
 
 Build requirements:
-- Visual Studio 2022 or later
-- .NET 8 SDK
+- Visual Studio 2026 or later
+- .NET 10 SDK
 
 ## Used Assets
 - Logo: https://www.svgrepo.com/svg/532995/pen-square

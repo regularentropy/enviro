@@ -1,4 +1,5 @@
 using enviro.Factories;
+using enviro.Forms;
 using enviro.Models;
 using enviro.Services;
 using enviro.Static;
@@ -16,11 +17,12 @@ internal partial class MainForm : Form
     private readonly IEnvService _pathService;
     private readonly IPathAdapter _pathAdapter;
     private readonly IUpdateService _updateService;
-    private readonly ISoftwareMetadataService _softwareMetadataService;
+
+    private readonly MetadataRepository _metadataRepository;
 
     private readonly IServiceProvider _serviceProvider;
 
-    public MainForm(IEnvService ps, IPathAdapter pa, IUpdateService us, ITabFactory tf, IServiceProvider sp, ISoftwareMetadataService sms)
+    public MainForm(IEnvService ps, IPathAdapter pa, IUpdateService us, ITabFactory tf, IServiceProvider sp, MetadataRepository mr)
     {
         InitializeComponent();
 
@@ -29,7 +31,7 @@ internal partial class MainForm : Form
         _tabFactory = tf;
 
         _updateService = us;
-        _softwareMetadataService = sms;
+        _metadataRepository = mr;
         _pathService = ps;
         _pathAdapter = pa;
 
@@ -80,18 +82,12 @@ internal partial class MainForm : Form
         try
         {
             var result = await _updateService.CheckForUpdatesAsync();
-            if (result)
-            {
-                var msg = MessageBox.Show("New version detected. Download?", "Updater", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-                if (msg == DialogResult.Yes)
-                {
-                    Process.Start(new ProcessStartInfo(_softwareMetadataService.RepositoryLink) { UseShellExecute = true });
-                }
-            }
-            else
+            if (result is null)
             {
                 MessageBox.Show("No updates found", "Updater", MessageBoxButtons.OK);
+                return;
             }
+            new UpdateForm(_metadataRepository, result).ShowDialog();
         }
         catch (HttpRequestException ex) when (ex.InnerException is SocketException)
         {

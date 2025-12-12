@@ -6,12 +6,12 @@ namespace enviro;
 
 internal partial class AboutForm : Form
 {
-    private readonly ISoftwareMetadataService _sms;
-    public AboutForm(ISoftwareMetadataService sms)
+    private readonly MetadataRepository _mr;
+    public AboutForm(MetadataRepository mr)
     {
         InitializeComponent();
 
-        this._sms = sms;
+        _mr = mr;
 
         MinimizeBox = false;
         MaximizeBox = false;
@@ -19,8 +19,8 @@ internal partial class AboutForm : Form
         this.FormBorderStyle = FormBorderStyle.FixedDialog;
         this.CenterToParent();
 
-        versionLabel.Text = $"{_sms.Title} v.{_sms.Version}";
-        repoLink.Text = $"{_sms.Title} on Github";
+        versionLabel.Text = $"{_mr.Title} v.{_mr.Version}";
+        repoLink.Text = $"{_mr.Title} on Github";
     }
 
     private void CloseForm(object sender, EventArgs e)
@@ -30,6 +30,6 @@ internal partial class AboutForm : Form
 
     private void repoLink_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
     {
-        Process.Start(new ProcessStartInfo(_sms.RepositoryLink) { UseShellExecute = true });
+        Process.Start(new ProcessStartInfo(_mr.RepositoryLink) { UseShellExecute = true });
     }
 }

@@ -24,7 +24,8 @@ namespace enviro
 
             services.AddSingleton<IUpdateService, UpdateService>();
             services.AddSingleton<IPathAdapter, EnvAdapter>();
-            services.AddSingleton<ISoftwareMetadataService, SoftwareMetadataService>();
+
+            services.AddSingleton<MetadataRepository>();
 
             services.AddSingleton<IActionFactory<EnvModel>, EntryFormFactory>();
 

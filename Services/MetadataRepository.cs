@@ -1,25 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-using System.Runtime.ConstrainedExecution;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Reflection;
 
 namespace enviro.Services;
 
-internal interface ISoftwareMetadataService
-{
-    string APIHost { get; init; }
-    string APILink { get; init; }
-    string Author { get; init; }
-    string RepositoryHost { get; init; }
-    string RepositoryLink { get; init; }
-    string Title { get; init; }
-    Version Version { get; init; }
-}
-
-internal class SoftwareMetadataService : ISoftwareMetadataService
+internal class MetadataRepository
 {
     /// <summary>
     /// Name of the program
@@ -62,7 +45,7 @@ internal class SoftwareMetadataService : ISoftwareMetadataService
     public string APILink { get; init; }
 
 
-    public SoftwareMetadataService()
+    public MetadataRepository()
     {
         var assembly = Assembly.GetExecutingAssembly();
 

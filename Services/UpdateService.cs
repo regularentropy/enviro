@@ -1,29 +1,29 @@
-﻿using System;
-using System.Reflection;
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace enviro.Services;
 
-public interface IUpdateService
+internal record UpdateResponse(string Tag, string LastReleaseURL, string ReleaseNotes);
+
+internal interface IUpdateService
 {
-    Task<bool> CheckForUpdatesAsync();
+    Task<UpdateResponse?> CheckForUpdatesAsync();
 }
 
 internal sealed class UpdateService : IUpdateService
 {
-    private readonly ISoftwareMetadataService _sms;
+    private readonly MetadataRepository _mr;
 
-    public UpdateService(ISoftwareMetadataService sms)
+    public UpdateService(MetadataRepository mr)
     {
-        _sms = sms;
+        _mr = mr;
     }
 
-    public async Task<bool> CheckForUpdatesAsync()
+    public async Task<UpdateResponse?> CheckForUpdatesAsync()
     {
         using var http = new HttpClient();
-        http.DefaultRequestHeaders.UserAgent.ParseAdd(_sms.Title);
+        http.DefaultRequestHeaders.UserAgent.ParseAdd(_mr.Title);
 
-        var response = await http.GetAsync(_sms.APILink).ConfigureAwait(false);
+        var response = await http.GetAsync(_mr.APILink).ConfigureAwait(false);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -36,9 +36,16 @@ internal sealed class UpdateService : IUpdateService
         var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
         using var doc = JsonDocument.Parse(json);
 
-        var tag = doc.RootElement.GetProperty("tag_name").GetString();
-        var remoteVersion = new Version(tag);
+        var tag = doc.RootElement.GetProperty("tag_name").GetString()!;
+        if (new Version(tag) <= _mr.Version)
+        {
+            return null;
+        }
 
-        return remoteVersion > _sms.Version;
+        var name = doc.RootElement.GetProperty("name").GetString()!;
+        var description = doc.RootElement.GetProperty("body").GetString()!;
+        var url = doc.RootElement.GetProperty("html_url").GetString()!;
+
+        return new UpdateResponse(tag, url, description);
     }
 }

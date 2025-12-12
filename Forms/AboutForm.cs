@@ -28,7 +28,7 @@ internal partial class AboutForm : Form
         this.Close();
     }
 
-    private void GithubLinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+    private void repoLink_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
     {
         Process.Start(new ProcessStartInfo(_sms.RepositoryLink) { UseShellExecute = true });
     }

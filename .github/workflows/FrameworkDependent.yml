@@ -12,11 +12,11 @@ jobs:
         with:
           dotnet-version: '10.0.x'
       - name: Restore
-        run: dotnet restore enviro.sln
+        run: dotnet restore enviro.slnx
       - name: Build
-        run: dotnet build enviro.sln --configuration Release --no-restore
+        run: dotnet build enviro.slnx --configuration Release --no-restore
       - name: Publish
-        run: dotnet publish enviro.sln --configuration Release --output ./publish/win-x64-fd --runtime win-x64 --self-contained false /p:PublishSingleFile=true
+        run: dotnet publish enviro.slnx --configuration Release --output ./publish/win-x64-fd --runtime win-x64 --self-contained false /p:PublishSingleFile=true
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:

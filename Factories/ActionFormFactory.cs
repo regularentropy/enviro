@@ -16,24 +16,17 @@ internal interface IActionFactory<TModel> : IActionFactory
     Form Create(TModel model, EnvironmentalVariableType t);
 }
 
-internal class EntryFormFactory : IActionFactory<EnvModel>
+internal class EntryFormFactory (IServiceProvider _sp) : IActionFactory<EnvModel>
 {
-    private readonly IServiceProvider _serviceProvider;
-
-    public EntryFormFactory(IServiceProvider serviceProvider)
-    {
-        _serviceProvider = serviceProvider;
-    }
-
     public Form Create(EnvironmentalVariableType t)
     {
-        var pathService = _serviceProvider.GetRequiredService<IEnvService>();
+        var pathService = _sp.GetRequiredService<IEnvService>();
         return new CreateForm(pathService, t);
     }
 
     public Form Create(EnvModel model, EnvironmentalVariableType t)
     {
-        var pathService = _serviceProvider.GetRequiredService<IEnvService>();
+        var pathService = _sp.GetRequiredService<IEnvService>();
         return new EditForm(pathService, model, t);
     }
 }

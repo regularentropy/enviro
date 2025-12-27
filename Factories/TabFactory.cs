@@ -7,15 +7,8 @@ public interface ITabFactory
     TabPage Create(EnvironmentalVariableType tab);
 }
 
-internal sealed class TabFactory : ITabFactory
+internal sealed class TabFactory(IPathGridFactory gridFactory) : ITabFactory
 {
-    private readonly IPathGridFactory gridFactory;
-
-    public TabFactory(IPathGridFactory grid)
-    {
-        gridFactory = grid;
-    }
-
     public TabPage Create(EnvironmentalVariableType currentTab)
     {
         TabPage tab = new(currentTab.ToString());

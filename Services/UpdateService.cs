@@ -9,15 +9,8 @@ internal interface IUpdateService
     Task<UpdateResponse?> CheckForUpdatesAsync();
 }
 
-internal sealed class UpdateService : IUpdateService
+internal sealed class UpdateService (MetadataRepository _mr ) : IUpdateService
 {
-    private readonly MetadataRepository _mr;
-
-    public UpdateService(MetadataRepository mr)
-    {
-        _mr = mr;
-    }
-
     public async Task<UpdateResponse?> CheckForUpdatesAsync()
     {
         using var http = new HttpClient();

@@ -8,24 +8,21 @@ internal interface IPathAdapter
     Task<bool> ApplyAsync();
 }
 
-internal sealed class EnvAdapter : IPathAdapter
+internal sealed class EnvAdapter(IEnvService _es) : IPathAdapter
 {
-    private readonly IEnvService _ps;
-    public EnvAdapter(IEnvService ps) => _ps = ps;
-
     public Task<bool> ApplyAsync()
     {
         try
         {
             bool isAdmin = AdminChecker.IsAdmin();
 
-            var userVars = _ps.GetUserVariables();
+            var userVars = _es.GetUserVariables();
             Apply(EnvironmentalVariableType.User, userVars);
             Clean(userVars);
 
             if (isAdmin)
             {
-                var machineVars = _ps.GetMachineVariables();
+                var machineVars = _es.GetMachineVariables();
                 Apply(EnvironmentalVariableType.Machine, machineVars);
                 Clean(machineVars);
             }
@@ -61,7 +58,7 @@ internal sealed class EnvAdapter : IPathAdapter
 
     private void Clean(BindingList<EnvModel> models)
     {
-        foreach (var item in models.Where(v => v.State == EnvironmentalVariableState.Deleted).ToList())
+        foreach (var item in models.Where(v => v.State == EnvironmentalVariableState.Deleted))
             models.Remove(item);
 
         foreach (var v in models) { v.State = EnvironmentalVariableState.Unchanged; v.OrginalPath = v.Path; }

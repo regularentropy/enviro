@@ -11,15 +11,15 @@ internal interface IPathGridFactory
 
 internal sealed class PathGridFactory : IPathGridFactory
 {
-    private IEnvService ps;
-    private IContextMenuFactory cf;
-    private IActionFactory<EnvModel> af;
+    private readonly IEnvService ps;
+    private readonly IContextMenuFactory cf;
+    private readonly IActionFactory<EnvModel> af;
 
-    public PathGridFactory(IEnvService pathService, IActionFactory<EnvModel> fc, IContextMenuFactory contextMenuFactory)
+    public PathGridFactory(IEnvService pathService, IActionFactory<EnvModel> actionFactory, IContextMenuFactory contextMenuFactory)
     {
         ps = pathService;
         cf = contextMenuFactory;
-        af = fc;
+        af = actionFactory;
     }
 
     public DataGridView Create(EnvironmentalVariableType tab)

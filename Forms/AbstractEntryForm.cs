@@ -5,7 +5,7 @@ namespace enviro.Forms;
 
 internal abstract partial class AbstractEntryForm : Form
 {
-    protected IEnvService _envService;
+    protected readonly IEnvService _envService;
 
     public AbstractEntryForm(IEnvService es)
     {

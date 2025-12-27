@@ -29,9 +29,9 @@ internal partial class CreateForm : AbstractEntryForm
 
         var pathModel = new EnvModel { Name = name, Path = path };
 
-        if (!_pathService.Contains(pathModel, _t))
+        if (!_envService.Contains(pathModel, _t))
         {
-            if (_pathService.AddEntry(pathModel, _t))
+            if (_envService.AddEntry(pathModel, _t))
             {
                 MessageBox.Show("Variable successfully added", "Action",
                                 MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -45,10 +45,10 @@ internal partial class CreateForm : AbstractEntryForm
 
         if (res == DialogResult.OK)
         {
-            var existing = _pathService.GetModelByName(name, _t);
+            var existing = _envService.GetModelByName(name, _t);
             if (existing != null)
             {
-                _pathService.UpdatePath(existing, path, _t);
+                _envService.UpdatePath(existing, path, _t);
                 MessageBox.Show("Variable successfully updated", "Action",
                                 MessageBoxButtons.OK, MessageBoxIcon.Information);
             }

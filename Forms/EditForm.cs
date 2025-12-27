@@ -8,7 +8,6 @@ namespace enviro.Forms;
 /// </summary>
 internal partial class EditForm : AbstractEntryForm
 {
-    private readonly EnvModel _pm;
     private readonly EnvModel _pm_ref;
     private readonly EnvironmentalVariableType _t;
 
@@ -31,18 +30,18 @@ internal partial class EditForm : AbstractEntryForm
 
         if (nameChanged && pathChanged)
         {
-            _pathService.Rename(_pm_ref, newName, _t);
-            var newModel = _pathService.GetModelByName(newName, _t);
+            _envService.Rename(_pm_ref, newName, _t);
+            var newModel = _envService.GetModelByName(newName, _t);
             if (newModel != null)
-                _pathService.UpdatePath(newModel, newPath, _t);
+                _envService.UpdatePath(newModel, newPath, _t);
         }
         else if (nameChanged)
         {
-            _pathService.Rename(_pm_ref, newName, _t);
+            _envService.Rename(_pm_ref, newName, _t);
         }
         else if (pathChanged)
         {
-            _pathService.UpdatePath(_pm_ref, newPath, _t);
+            _envService.UpdatePath(_pm_ref, newPath, _t);
         }
 
         this.Close();

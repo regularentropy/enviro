@@ -17,8 +17,6 @@ internal partial class MainForm : Form
     private readonly IEnvService _envService;
     private readonly IPathAdapter _pathAdapter;
     private readonly IUpdateService _updateService;
-
-
     private readonly IServiceProvider _serviceProvider;
 
     public MainForm(IEnvService es, IPathAdapter pa, IUpdateService us, ITabFactory tf, IServiceProvider sp, MetadataRepository mr)
@@ -28,13 +26,10 @@ internal partial class MainForm : Form
         this.CenterToScreen();
 
         _tabFactory = tf;
-
         _updateService = us;
         _envService = es;
         _pathAdapter = pa;
-
         _serviceProvider = sp;
-
 
         this.Name = Assembly.GetExecutingAssembly().GetName().Name;
 
@@ -82,20 +77,18 @@ internal partial class MainForm : Form
             var response = await _updateService.CheckForUpdatesAsync();
             if (response is null)
             {
-                MessageBox.Show("No updates found", "Updater", MessageBoxButtons.OK);
+                DialogHelper.ShowMessage("No updates found", "Updater");
                 return;
             }
             new UpdateForm(response).ShowDialog();
         }
         catch (HttpRequestException ex) when (ex.InnerException is SocketException)
         {
-            MessageBox.Show("Cannot access the internet", "Updater", MessageBoxButtons.OK, MessageBoxIcon.Information);
-
+            DialogHelper.ShowInfo("Cannot access the internet", "Updater");
         }
-
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {
-            MessageBox.Show("The repository is unavailable.\nCheck the owners webpage.", "Updater", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            DialogHelper.ShowInfo("The repository is unavailable.\nCheck the owners webpage.", "Updater");
         }
     }
 
@@ -103,14 +96,14 @@ internal partial class MainForm : Form
     {
         if (!_envService.HasChanges())
         {
-            MessageBox.Show("No changes detected", "Apply", MessageBoxButtons.OK);
+            DialogHelper.ShowMessage("No changes detected", "Apply");
             return;
         }
 
         var result = await _pathAdapter.ApplyAsync();
         if (result)
         {
-            MessageBox.Show("Successfully applied changes", "Apply", MessageBoxButtons.OK);
+            DialogHelper.ShowMessage("Successfully applied changes", "Apply");
         }
     }
 }

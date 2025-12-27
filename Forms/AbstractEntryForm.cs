@@ -1,4 +1,5 @@
 ﻿using enviro.Services;
+using enviro.Static;
 using Microsoft.WindowsAPICodePack.Dialogs;
 
 namespace enviro.Forms;
@@ -26,12 +27,7 @@ internal abstract partial class AbstractEntryForm : Form
     protected void PathTextBox_Validating(object? sender, EventArgs e)
     {
         var box = (TextBox)sender!;
-        if (box.Text.Contains('='))
-        {
-            addButton.Enabled = false;
-            return;
-        }
-        addButton.Enabled = true;
+        addButton.Enabled = !ValidationHelper.ContainsInvalidCharacters(box.Text);
     }
 
     protected abstract void RunAction(object sender, EventArgs e);

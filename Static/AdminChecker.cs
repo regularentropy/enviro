@@ -13,8 +13,7 @@ internal static class AdminChecker
         var tab = (TabPage)c.Parent!;
         if (tab?.Text == "Machine" && !IsAdmin())
         {
-            MessageBox.Show("Access Denied", "Please run as administrator",
-                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+            DialogHelper.ShowError("Access Denied", "Please run as administrator");
             return false;
         }
         return true;

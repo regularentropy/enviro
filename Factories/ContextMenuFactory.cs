@@ -11,7 +11,6 @@ internal interface IContextMenuFactory
 
 internal sealed class ContextMenuFactory : IContextMenuFactory
 {
-
     private readonly IEnvService _pathService;
     private readonly IActionFactory<EnvModel> _entryFormFactory;
 
@@ -28,9 +27,9 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
         cms.Items.Add("Edit", null, (_, _) => CreateEdit(grid));
         cms.Items.Add("Delete", null, (_, _) => DeleteCurrentRow(grid));
         cms.Items.Add(new ToolStripSeparator());
-        cms.Items.Add("Copy value", null, (_, _) => CopyValue(grid));
-        cms.Items.Add("Copy path", null, (_, _) => CopyPath(grid));
-        cms.Items.Add("Copy original path", null, (_, _) => CopyOriginalPath(grid));
+        cms.Items.Add("Copy value", null, (_, _) => CopyToClipboard(grid, m => m.Name));
+        cms.Items.Add("Copy path", null, (_, _) => CopyToClipboard(grid, m => m.Path));
+        cms.Items.Add("Copy original path", null, (_, _) => CopyToClipboard(grid, m => m.OrginalPath));
 
         if (pm.State == EnvironmentalVariableState.Deleted)
             cms.Items.Insert(1, new ToolStripMenuItem("Restore", null, (_, _) => RestoreItem(pm)));
@@ -43,47 +42,31 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
     private void DeleteCurrentRow(DataGridView g)
     {
         if (!AdminChecker.ValidateTab(g)) return;
-        if (g.CurrentRow?.DataBoundItem is EnvModel m)
-            _pathService.RemoveEntry(m, TabOf(g));
+        var model = ControlHelper.GetCurrentModel(g);
+        if (model is not null)
+            _pathService.RemoveEntry(model, ControlHelper.GetTabType(g));
     }
 
     private void AppendToPath(DataGridView g)
     {
         if (!AdminChecker.ValidateTab(g)) return;
-        _entryFormFactory.Create(TabOf(g)).ShowDialog();
+        _entryFormFactory.Create(ControlHelper.GetTabType(g)).ShowDialog();
     }
 
     private void CreateEdit(DataGridView g)
     {
         if (!AdminChecker.ValidateTab(g)) return;
-        if (g.CurrentRow?.DataBoundItem is EnvModel m)
-            _entryFormFactory.Create(m, TabOf(g)).ShowDialog();
+        var model = ControlHelper.GetCurrentModel(g);
+        if (model is not null)
+            _entryFormFactory.Create(model, ControlHelper.GetTabType(g)).ShowDialog();
     }
 
-    private void CopyPath(DataGridView g)
+    private void CopyToClipboard(DataGridView g, Func<EnvModel, string> selector)
     {
-        if (g.CurrentRow?.DataBoundItem is EnvModel m)
-            Clipboard.SetText(m.Path);
-    }
-
-    private void CopyValue(DataGridView g)
-    {
-        if (g.CurrentRow?.DataBoundItem is EnvModel m)
-            Clipboard.SetText(m.Name);
-    }
-    private void CopyOriginalPath(DataGridView g)
-    {
-        if (g.CurrentRow?.DataBoundItem is EnvModel m)
-            Clipboard.SetText(m.OrginalPath);
+        var model = ControlHelper.GetCurrentModel(g);
+        ClipboardHelper.CopyModelProperty(model, selector);
     }
 
     private void RestoreItem(EnvModel pm) => _pathService.RestoreItem(pm);
     private void ResetItem(EnvModel pm) => _pathService.ResetItem(pm);
-
-    private EnvironmentalVariableType TabOf(Control c) =>
-        c.Parent?.Text switch
-        {
-            "Machine" => EnvironmentalVariableType.Machine,
-            "User" => EnvironmentalVariableType.User
-        };
 }

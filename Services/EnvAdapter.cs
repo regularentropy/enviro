@@ -17,14 +17,12 @@ internal sealed class EnvAdapter(IEnvService _es) : IPathAdapter
             bool isAdmin = AdminChecker.IsAdmin();
 
             var userVars = _es.GetUserVariables();
-            Apply(EnvironmentalVariableType.User, userVars);
-            Clean(userVars);
+            ApplyAndClean(EnvironmentalVariableType.User, userVars);
 
             if (isAdmin)
             {
                 var machineVars = _es.GetMachineVariables();
-                Apply(EnvironmentalVariableType.Machine, machineVars);
-                Clean(machineVars);
+                ApplyAndClean(EnvironmentalVariableType.Machine, machineVars);
             }
             return Task.FromResult(true);
         }
@@ -34,33 +32,43 @@ internal sealed class EnvAdapter(IEnvService _es) : IPathAdapter
         }
     }
 
-    private EnvironmentVariableTarget Convert(EnvironmentalVariableType t)
+    private void ApplyAndClean(EnvironmentalVariableType t, BindingList<EnvModel> models)
     {
-        return t switch
-        {
-            EnvironmentalVariableType.User => EnvironmentVariableTarget.User,
-            EnvironmentalVariableType.Machine => EnvironmentVariableTarget.Machine
-        };
+        Apply(t, models);
+        Clean(models);
     }
 
     private void Apply(EnvironmentalVariableType t, BindingList<EnvModel> models)
     {
-        var envVarType = Convert(t);
-        foreach (var v in models.Where(s => s.State == EnvironmentalVariableState.Deleted))
-            Environment.SetEnvironmentVariable(v.Name, null, envVarType);
+        var envVarType = EnvTypeConverter.ToTarget(t);
 
-        foreach (var v in models.Where(s => s.State == EnvironmentalVariableState.Modified))
-            Environment.SetEnvironmentVariable(v.Name, v.Path, envVarType);
+        ApplyStateChanges(models, EnvironmentalVariableState.Deleted, envVarType, (v, target) =>
+            Environment.SetEnvironmentVariable(v.Name, null, target));
 
-        foreach (var v in models.Where(s => s.State == EnvironmentalVariableState.Added))
-            Environment.SetEnvironmentVariable(v.Name, v.Path, envVarType);
+        ApplyStateChanges(models, EnvironmentalVariableState.Modified, envVarType, (v, target) =>
+            Environment.SetEnvironmentVariable(v.Name, v.Path, target));
+
+        ApplyStateChanges(models, EnvironmentalVariableState.Added, envVarType, (v, target) =>
+            Environment.SetEnvironmentVariable(v.Name, v.Path, target));
+    }
+
+    private void ApplyStateChanges(BindingList<EnvModel> models, EnvironmentalVariableState state,
+        EnvironmentVariableTarget target, Action<EnvModel, EnvironmentVariableTarget> action)
+    {
+        foreach (var v in models.Where(s => s.State == state))
+            action(v, target);
     }
 
     private void Clean(BindingList<EnvModel> models)
     {
-        foreach (var item in models.Where(v => v.State == EnvironmentalVariableState.Deleted))
+        var toRemove = models.Where(v => v.State == EnvironmentalVariableState.Deleted);
+        foreach (var item in toRemove)
             models.Remove(item);
 
-        foreach (var v in models) { v.State = EnvironmentalVariableState.Unchanged; v.OrginalPath = v.Path; }
+        foreach (var v in models)
+        {
+            v.State = EnvironmentalVariableState.Unchanged;
+            v.OrginalPath = v.Path;
+        }
     }
 }

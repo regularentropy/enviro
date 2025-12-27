@@ -48,7 +48,6 @@ internal sealed class PathGridFactory : IPathGridFactory
         grid.AutoGenerateColumns = false;
 #endif
 
-
         grid.Columns.AddRange([
             new DataGridViewTextBoxColumn() { Name="NameText", HeaderText = "Name", DataPropertyName = nameof(EnvModel.Name)},
             new DataGridViewTextBoxColumn() { Name="PathText", HeaderText = "Path", DataPropertyName = nameof(EnvModel.Path) }
@@ -66,7 +65,7 @@ internal sealed class PathGridFactory : IPathGridFactory
 
             var pm = grid.CurrentRow.DataBoundItem as EnvModel;
 
-            af.Create(pm, tab).ShowDialog();
+                af.Create(pm, tab).ShowDialog();
         };
 
         grid.MouseClick += (s, e) =>
@@ -87,35 +86,17 @@ internal sealed class PathGridFactory : IPathGridFactory
                 var model = (EnvModel)grid.CurrentRow.DataBoundItem;
 
                 var cms = cf.CreateForPathGrid(grid, model);
-
                 cms.Show(grid, e.Location);
             }
         };
 
-        //grid.CellEndEdit += (s, e) => grid.ReadOnly = true;
-
         grid.CellFormatting += (s, e) =>
-        {
-            if (grid.Rows[e.RowIndex].DataBoundItem is EnvModel pm)
             {
-                switch (pm.State)
+                if (grid.Rows[e.RowIndex].DataBoundItem is EnvModel pm)
                 {
-                    case EnvironmentalVariableState.Added:
-                        e.CellStyle.BackColor = Color.LightGreen;
-                        break;
-                    case EnvironmentalVariableState.Modified:
-                        e.CellStyle.BackColor = Color.LightYellow;
-                        break;
-                    case EnvironmentalVariableState.Deleted:
-                        e.CellStyle.BackColor = Color.LightCoral;
-                        e.CellStyle.Font = new Font(e.CellStyle.Font, FontStyle.Strikeout);
-                        break;
-                    case EnvironmentalVariableState.Unchanged:
-                        e.CellStyle.BackColor = Color.White;
-                        break;
+                    GridStyleHelper.ApplyStateFormatting(e, pm);
                 }
-            }
-        };
+            };
 
         return grid;
     }

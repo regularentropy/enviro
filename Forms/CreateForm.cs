@@ -1,5 +1,6 @@
 ﻿using enviro.Models;
 using enviro.Services;
+using enviro.Static;
 
 namespace enviro.Forms;
 
@@ -20,12 +21,8 @@ internal partial class CreateForm : AbstractEntryForm
         var name = nameTextBox.Text.Trim();
         var path = pathTextBox.Text.Trim();
 
-        if (string.IsNullOrWhiteSpace(name) | string.IsNullOrWhiteSpace(path))
-        {
-            MessageBox.Show("Name and path cannot be empty or consist only of spaces.",
-                            "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        if (!ValidationHelper.ValidateEnvironmentVariableInput(name, path))
             return;
-        }
 
         var pathModel = new EnvModel { Name = name, Path = path };
 
@@ -33,15 +30,13 @@ internal partial class CreateForm : AbstractEntryForm
         {
             if (_envService.AddEntry(pathModel, _t))
             {
-                MessageBox.Show("Variable successfully added", "Action",
-                                MessageBoxButtons.OK, MessageBoxIcon.Information);
+                DialogHelper.ShowInfo("Variable successfully added", "Action");
                 this.Close();
             }
             return;
         }
 
-        var res = MessageBox.Show("The variable already exists. Override?", "Confirm",
-                                  MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
+        var res = DialogHelper.ShowConfirm("The variable already exists. Override?");
 
         if (res == DialogResult.OK)
         {
@@ -49,8 +44,7 @@ internal partial class CreateForm : AbstractEntryForm
             if (existing != null)
             {
                 _envService.UpdatePath(existing, path, _t);
-                MessageBox.Show("Variable successfully updated", "Action",
-                                MessageBoxButtons.OK, MessageBoxIcon.Information);
+                DialogHelper.ShowInfo("Variable successfully updated", "Action");
             }
 
             this.Close();

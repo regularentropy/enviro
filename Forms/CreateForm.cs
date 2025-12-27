@@ -14,6 +14,10 @@ internal partial class CreateForm : AbstractEntryForm
     public CreateForm(IEnvService es, EnvironmentalVariableType t) : base(es)
     {
         _t = t;
+
+        this.Text = "Create";
+        addButton.Text = "Create";
+
     }
 
     protected override void RunAction(object sender, EventArgs e)

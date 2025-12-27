@@ -18,6 +18,9 @@ internal partial class EditForm : AbstractEntryForm
 
         nameTextBox.Text = pm.Name;
         pathTextBox.Text = pm.Path;
+
+        this.Text = "Edit";
+        addButton.Text = "Edit";
     }
 
     protected override void RunAction(object sender, EventArgs e)

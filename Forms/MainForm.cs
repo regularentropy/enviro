@@ -18,7 +18,6 @@ internal partial class MainForm : Form
     private readonly IPathAdapter _pathAdapter;
     private readonly IUpdateService _updateService;
 
-    private readonly MetadataRepository _metadataRepository;
 
     private readonly IServiceProvider _serviceProvider;
 
@@ -80,13 +79,13 @@ internal partial class MainForm : Form
     {
         try
         {
-            var result = await _updateService.CheckForUpdatesAsync();
-            if (result is null)
+            var response = await _updateService.CheckForUpdatesAsync();
+            if (response is null)
             {
                 MessageBox.Show("No updates found", "Updater", MessageBoxButtons.OK);
                 return;
             }
-            new UpdateForm(_metadataRepository, result).ShowDialog();
+            new UpdateForm(response).ShowDialog();
         }
         catch (HttpRequestException ex) when (ex.InnerException is SocketException)
         {

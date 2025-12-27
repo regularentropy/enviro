@@ -15,9 +15,9 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
     private readonly IEnvService _pathService;
     private readonly IActionFactory<EnvModel> _entryFormFactory;
 
-    public ContextMenuFactory(IEnvService pathService, IActionFactory<EnvModel> factory)
+    public ContextMenuFactory(IEnvService envService, IActionFactory<EnvModel> factory)
     {
-        _pathService = pathService;
+        _pathService = envService;
         _entryFormFactory = factory;
     }
 

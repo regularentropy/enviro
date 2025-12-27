@@ -10,7 +10,7 @@ internal partial class CreateForm : AbstractEntryForm
 {
     private readonly EnvironmentalVariableType _t;
 
-    public CreateForm(IEnvService ps, EnvironmentalVariableType t) : base(ps)
+    public CreateForm(IEnvService es, EnvironmentalVariableType t) : base(es)
     {
         _t = t;
     }
@@ -27,11 +27,7 @@ internal partial class CreateForm : AbstractEntryForm
             return;
         }
 
-        EnvModel pathModel = new()
-        {
-            Name = name,
-            Path = path
-        };
+        var pathModel = new EnvModel { Name = name, Path = path };
 
         if (!_pathService.Contains(pathModel, _t))
         {

@@ -20,13 +20,13 @@ internal class EntryFormFactory (IServiceProvider _sp) : IActionFactory<EnvModel
 {
     public Form Create(EnvironmentalVariableType t)
     {
-        var pathService = _sp.GetRequiredService<IEnvService>();
-        return new CreateForm(pathService, t);
+        var envService = _sp.GetRequiredService<IEnvService>();
+        return new CreateForm(envService, t);
     }
 
     public Form Create(EnvModel model, EnvironmentalVariableType t)
     {
-        var pathService = _sp.GetRequiredService<IEnvService>();
-        return new EditForm(pathService, model, t);
+        var envService = _sp.GetRequiredService<IEnvService>();
+        return new EditForm(envService, model, t);
     }
 }

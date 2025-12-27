@@ -14,7 +14,7 @@ namespace enviro;
 internal partial class MainForm : Form
 {
     private readonly ITabFactory _tabFactory;
-    private readonly IEnvService _pathService;
+    private readonly IEnvService _envService;
     private readonly IPathAdapter _pathAdapter;
     private readonly IUpdateService _updateService;
 
@@ -22,7 +22,7 @@ internal partial class MainForm : Form
 
     private readonly IServiceProvider _serviceProvider;
 
-    public MainForm(IEnvService ps, IPathAdapter pa, IUpdateService us, ITabFactory tf, IServiceProvider sp, MetadataRepository mr)
+    public MainForm(IEnvService es, IPathAdapter pa, IUpdateService us, ITabFactory tf, IServiceProvider sp, MetadataRepository mr)
     {
         InitializeComponent();
 
@@ -31,8 +31,7 @@ internal partial class MainForm : Form
         _tabFactory = tf;
 
         _updateService = us;
-        _metadataRepository = mr;
-        _pathService = ps;
+        _envService = es;
         _pathAdapter = pa;
 
         _serviceProvider = sp;
@@ -103,7 +102,7 @@ internal partial class MainForm : Form
 
     private async void Apply(object sender, EventArgs e)
     {
-        if (!_pathService.HasChanges())
+        if (!_envService.HasChanges())
         {
             MessageBox.Show("No changes detected", "Apply", MessageBoxButtons.OK);
             return;

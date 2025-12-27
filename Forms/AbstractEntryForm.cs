@@ -5,13 +5,13 @@ namespace enviro.Forms;
 
 internal abstract partial class AbstractEntryForm : Form
 {
-    protected IEnvService _pathService;
+    protected IEnvService _envService;
 
-    public AbstractEntryForm(IEnvService ps)
+    public AbstractEntryForm(IEnvService es)
     {
         InitializeComponent();
 
-        _pathService = ps;
+        _envService = es;
 
         nameTextBox.TextChanged += PathTextBox_Validating;
         pathTextBox.TextChanged += PathTextBox_Validating;

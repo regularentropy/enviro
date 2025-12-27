@@ -37,29 +37,24 @@ internal sealed class EnvService : IEnvService
         FillPath();
     }
 
+    private BindingList<EnvModel> GetVariablesByType(EnvironmentalVariableType t) =>
+        t == EnvironmentalVariableType.User ? variables.User : variables.Machine;
+
     private void FillPath()
     {
-        foreach (System.Collections.DictionaryEntry de in
-            Environment.GetEnvironmentVariables(EnvironmentVariableTarget.User))
-        {
-            var path = de.Value?.ToString() ?? string.Empty;
-            variables.User.Add(new EnvModel
-            {
-                Name = de.Key?.ToString(),
-                Path = de.Value?.ToString() ?? string.Empty,
-                OrginalPath = path,
-                State = EnvironmentalVariableState.Unchanged,
-            });
-        }
+        LoadVariables(EnvironmentVariableTarget.User, variables.User);
+        LoadVariables(EnvironmentVariableTarget.Machine, variables.Machine);
+    }
 
-        foreach (System.Collections.DictionaryEntry de in
-            Environment.GetEnvironmentVariables(EnvironmentVariableTarget.Machine))
+    private static void LoadVariables(EnvironmentVariableTarget target, BindingList<EnvModel> list)
+    {
+        foreach (System.Collections.DictionaryEntry de in Environment.GetEnvironmentVariables(target))
         {
             var path = de.Value?.ToString() ?? string.Empty;
-            variables.Machine.Add(new EnvModel
+            list.Add(new EnvModel
             {
                 Name = de.Key?.ToString(),
-                Path = de.Value?.ToString() ?? string.Empty,
+                Path = path,
                 OrginalPath = path,
                 State = EnvironmentalVariableState.Unchanged,
             });
@@ -74,14 +69,14 @@ internal sealed class EnvService : IEnvService
         pm.State = EnvironmentalVariableState.Added;
         pm.OrginalPath = pm.Path;
 
-        (t == EnvironmentalVariableType.User ? variables.User : variables.Machine).Add(pm);
+        GetVariablesByType(t).Add(pm);
 
         return true;
     }
 
     public bool UpdatePath(EnvModel model, string newPath, EnvironmentalVariableType t)
     {
-        var array = t == EnvironmentalVariableType.User ? variables.User : variables.Machine;
+        var array = GetVariablesByType(t);
         var foundModel = array.FirstOrDefault(s => s.Name == model.Name);
 
         if (foundModel == null)
@@ -100,7 +95,7 @@ internal sealed class EnvService : IEnvService
         if (string.IsNullOrWhiteSpace(newName))
             return false;
 
-        var array = t == EnvironmentalVariableType.User ? variables.User : variables.Machine;
+        var array = GetVariablesByType(t);
         var foundModel = array.FirstOrDefault(s => s.Name == model.Name);
 
         if (foundModel == null)
@@ -133,7 +128,7 @@ internal sealed class EnvService : IEnvService
     {
         if (pm.State == EnvironmentalVariableState.Added)
         {
-            (t == EnvironmentalVariableType.User ? variables.User : variables.Machine).Remove(pm);
+            GetVariablesByType(t).Remove(pm);
             return true;
         }
 
@@ -144,7 +139,7 @@ internal sealed class EnvService : IEnvService
 
     public bool Contains(EnvModel pathModel, EnvironmentalVariableType t)
     {
-        var array = t == EnvironmentalVariableType.User ? variables.User : variables.Machine;
+        var array = GetVariablesByType(t);
         return array.Any(c => c.Name == pathModel.Name);
     }
 
@@ -158,7 +153,7 @@ internal sealed class EnvService : IEnvService
 
     public EnvModel? GetModelByName(string name, EnvironmentalVariableType t)
     {
-        var array = t == EnvironmentalVariableType.User ? variables.User : variables.Machine;
+        var array = GetVariablesByType(t);
         return array.FirstOrDefault(s => s.Name == name);
     }
 

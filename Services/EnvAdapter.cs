@@ -61,7 +61,7 @@ internal sealed class EnvAdapter(IEnvService _es) : IPathAdapter
 
     private void Clean(BindingList<EnvModel> models)
     {
-        var toRemove = models.Where(v => v.State == EnvironmentalVariableState.Deleted);
+        var toRemove = models.Where(v => v.State == EnvironmentalVariableState.Deleted).ToList();
         foreach (var item in toRemove)
             models.Remove(item);
 

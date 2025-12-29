@@ -1,5 +1,6 @@
 ﻿using enviro.Models;
 using enviro.Services;
+using enviro.Static;
 
 namespace enviro.Forms;
 
@@ -31,16 +32,21 @@ internal partial class EditForm : AbstractEntryForm
         bool nameChanged = newName != _pm_ref.Name;
         bool pathChanged = newPath != _pm_ref.Path;
 
-        if (nameChanged && pathChanged)
+        if (!nameChanged && !pathChanged)
         {
-            _envService.Rename(_pm_ref, newName, _t);
-            var newModel = _envService.GetModelByName(newName, _t);
-            if (newModel != null)
-                _envService.UpdatePath(newModel, newPath, _t);
+            DialogHelper.ShowError("No changes detected");
+            return;
         }
-        else if (nameChanged)
+
+        if (nameChanged)
         {
-            _envService.Rename(_pm_ref, newName, _t);
+            _envService.Rename(_pm_ref.Name, newName, _t);
+
+            if (pathChanged)
+            {
+                var renamedModel = _envService.GetModelByName(newName, _t)!;
+                _envService.UpdatePath(renamedModel, newPath, _t);
+            }
         }
         else if (pathChanged)
         {

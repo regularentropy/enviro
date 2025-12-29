@@ -10,7 +10,7 @@
 	<Company>regularentropy</Company>
 	<Product>Enviro</Product>
 	<AssemblyName>Enviro</AssemblyName>
-	<Version>0.5.0</Version>
+	<Version>0.6.0</Version>
 	  
 	<SignAssembly>True</SignAssembly>
 	  
@@ -58,8 +58,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include=".github\workflows\SelftContained.yml" />
-    <None Include=".github\workflows\FrameworkDependent.yml" />
+    <None Include=".github\workflows\build.yml" />
   </ItemGroup>
 
 </Project>

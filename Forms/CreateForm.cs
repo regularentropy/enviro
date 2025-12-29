@@ -32,11 +32,11 @@ internal partial class CreateForm : AbstractEntryForm
 
         if (!_envService.Contains(pathModel, _t))
         {
-            if (_envService.AddEntry(pathModel, _t))
-            {
-                DialogHelper.ShowInfo("Variable successfully added", "Action");
-                this.Close();
-            }
+            _envService.AddEntry(pathModel, _t);
+            
+            DialogHelper.ShowInfo("Variable successfully added", "Action");
+            this.Close();
+            
             return;
         }
 

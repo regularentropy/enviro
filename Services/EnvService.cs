@@ -11,8 +11,8 @@ internal interface IEnvService
 
     bool HasChanges();
 
-    bool AddEntry(EnvModel pm, EnvironmentalVariableType t);
-    bool RemoveEntry(EnvModel pm, EnvironmentalVariableType t);
+    void AddEntry(EnvModel pm, EnvironmentalVariableType t);
+    void RemoveEntry(EnvModel pm, EnvironmentalVariableType t);
     bool Contains(EnvModel pathModel, EnvironmentalVariableType t);
 
     void RestoreItem(EnvModel pm);
@@ -20,8 +20,8 @@ internal interface IEnvService
 
     EnvModel? GetModelByName(string name, EnvironmentalVariableType t);
 
-    bool UpdatePath(EnvModel model, string newPath, EnvironmentalVariableType t);
-    bool Rename(EnvModel model, string newName, EnvironmentalVariableType t);
+    void UpdatePath(EnvModel model, string newPath, EnvironmentalVariableType t);
+    void Rename(string oldName, string newName, EnvironmentalVariableType t);
 }
 
 internal sealed class EnvService : IEnvService
@@ -61,53 +61,40 @@ internal sealed class EnvService : IEnvService
         }
     }
 
-    public bool AddEntry(EnvModel pm, EnvironmentalVariableType t)
+    public void AddEntry(EnvModel pm, EnvironmentalVariableType t)
     {
-        if (Contains(pm, t))
-            return false;
 
         pm.State = EnvironmentalVariableState.Added;
         pm.OrginalPath = pm.Path;
 
         GetVariablesByType(t).Add(pm);
-
-        return true;
     }
 
-    public bool UpdatePath(EnvModel model, string newPath, EnvironmentalVariableType t)
+    public void UpdatePath(EnvModel model, string newPath, EnvironmentalVariableType t)
     {
-        var array = GetVariablesByType(t);
-        var foundModel = array.FirstOrDefault(s => s.Name == model.Name);
+        model.Path = newPath;
 
-        if (foundModel == null)
-            return false;
-
-        foundModel.Path = newPath;
-
-        if (foundModel.State != EnvironmentalVariableState.Added)
-            foundModel.State = EnvironmentalVariableState.Modified;
-
-        return true;
+        if (model.State != EnvironmentalVariableState.Added)
+            model.State = EnvironmentalVariableState.Modified;
     }
 
-    public bool Rename(EnvModel model, string newName, EnvironmentalVariableType t)
+    public void Rename(string oldName, string newName, EnvironmentalVariableType t)
     {
         if (string.IsNullOrWhiteSpace(newName))
-            return false;
+            return;
 
-        var array = GetVariablesByType(t);
-        var foundModel = array.FirstOrDefault(s => s.Name == model.Name);
+        var foundModel = GetModelByName(oldName ?? string.Empty, t);
 
         if (foundModel == null)
-            return false;
+            return;
 
-        if (array.Any(m => m.Name == newName && m != foundModel))
-            return false;
+        if (GetModelByName(newName, t) != null && GetModelByName(newName, t) != foundModel)
+            return;
 
         if (foundModel.State == EnvironmentalVariableState.Added)
         {
             foundModel.Name = newName;
-            return true;
+            return;
         }
 
         foundModel.State = EnvironmentalVariableState.Deleted;
@@ -120,21 +107,18 @@ internal sealed class EnvService : IEnvService
             State = EnvironmentalVariableState.Added
         };
 
-        array.Add(newModel);
-        return true;
+        GetVariablesByType(t).Add(newModel);
     }
 
-    public bool RemoveEntry(EnvModel pm, EnvironmentalVariableType t)
+    public void RemoveEntry(EnvModel pm, EnvironmentalVariableType t)
     {
         if (pm.State == EnvironmentalVariableState.Added)
         {
             GetVariablesByType(t).Remove(pm);
-            return true;
+            return;
         }
 
         pm.State = EnvironmentalVariableState.Deleted;
-
-        return true;
     }
 
     public bool Contains(EnvModel pathModel, EnvironmentalVariableType t)

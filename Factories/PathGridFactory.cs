@@ -52,7 +52,6 @@ internal sealed class PathGridFactory : IPathGridFactory
             AutoSize = false,
             Dock = DockStyle.Fill,
             RowHeadersVisible = false,
-            AllowUserToAddRows = false,
             ReadOnly = true,
             SelectionMode = DataGridViewSelectionMode.FullRowSelect,
             MultiSelect = false,
@@ -63,6 +62,7 @@ internal sealed class PathGridFactory : IPathGridFactory
             EditMode = DataGridViewEditMode.EditProgrammatically,
             AllowUserToResizeRows = false,
             BackgroundColor = Color.White,
+            AllowUserToAddRows = false,
             AllowUserToDeleteRows = false,
         };
 
@@ -73,11 +73,23 @@ internal sealed class PathGridFactory : IPathGridFactory
 #endif
 
         grid.Columns.AddRange([
-            new DataGridViewTextBoxColumn() { Name="NameText", HeaderText = "Name", DataPropertyName = nameof(EnvModel.Name)},
-            new DataGridViewTextBoxColumn() { Name="PathText", HeaderText = "Path", DataPropertyName = nameof(EnvModel.Path) }
+            new DataGridViewTextBoxColumn() { Name="NameText", HeaderText = "Name", DataPropertyName = nameof(EnvModel.Name), SortMode = DataGridViewColumnSortMode.Automatic},
+            new DataGridViewTextBoxColumn() { Name="PathText", HeaderText = "Path", DataPropertyName = nameof(EnvModel.Path), SortMode = DataGridViewColumnSortMode.Automatic }
         ]);
 
-        grid.DataSource = tab == EnvironmentalVariableType.User ? ps.GetUserVariables() : ps.GetMachineVariables();
+        var bundle = ps.GetPathModelBundle();
+
+        var bindingSource = new BindingSource
+        {
+            DataSource = bundle,
+            DataMember = tab == EnvironmentalVariableType.User ? nameof(EnvModelBundle.User) : nameof(EnvModelBundle.Machine)
+        };
+        grid.DataSource = bindingSource;
+
+        grid.ColumnHeaderMouseClick += (s, e) =>
+        {
+            GridStyleHelper.SortGrid(grid, bindingSource, e.ColumnIndex);
+        };
 
         grid.CellMouseDoubleClick += (s, e) =>
         {
@@ -89,7 +101,7 @@ internal sealed class PathGridFactory : IPathGridFactory
 
             var pm = grid.CurrentRow.DataBoundItem as EnvModel;
 
-                af.Create(pm, tab).ShowDialog();
+            af.Create(pm, tab).ShowDialog();
         };
 
         grid.MouseClick += (s, e) =>

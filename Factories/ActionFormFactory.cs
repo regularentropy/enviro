@@ -38,7 +38,7 @@ internal interface IActionFactory<TModel> : IActionFactory
 /// Factory for creating entry forms (Create and Edit forms) for environmental variables.
 /// </summary>
 /// <param name="_sp">The service provider for dependency injection.</param>
-internal class EntryFormFactory (IServiceProvider _sp) : IActionFactory<EnvModel>
+internal class EntryFormFactory(IServiceProvider _sp) : IActionFactory<EnvModel>
 {
     /// <summary>
     /// Creates a new form for creating an environmental variable.

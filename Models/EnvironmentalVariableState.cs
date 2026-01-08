@@ -9,17 +9,17 @@ public enum EnvironmentalVariableState
     /// The variable has not been modified.
     /// </summary>
     Unchanged,
-    
+
     /// <summary>
     /// The variable has been newly added.
     /// </summary>
     Added,
-    
+
     /// <summary>
     /// The variable has been modified from its original value.
     /// </summary>
     Modified,
-    
+
     /// <summary>
     /// The variable has been marked for deletion.
     /// </summary>

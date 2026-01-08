@@ -13,13 +13,13 @@ internal interface IEnvService
     /// </summary>
     /// <returns>A binding list of user environmental variables.</returns>
     BindingList<EnvModel> GetUserVariables();
-    
+
     /// <summary>
     /// Gets the collection of machine-level environmental variables.
     /// </summary>
     /// <returns>A binding list of machine environmental variables.</returns>
     BindingList<EnvModel> GetMachineVariables();
-    
+
     /// <summary>
     /// Gets the bundle containing both user and machine environmental variables.
     /// </summary>
@@ -38,14 +38,14 @@ internal interface IEnvService
     /// <param name="pm">The model to add.</param>
     /// <param name="t">The type of environmental variable (User or Machine).</param>
     void AddEntry(EnvModel pm, EnvironmentalVariableType t);
-    
+
     /// <summary>
     /// Removes an environmental variable entry.
     /// </summary>
     /// <param name="pm">The model to remove.</param>
     /// <param name="t">The type of environmental variable (User or Machine).</param>
     void RemoveEntry(EnvModel pm, EnvironmentalVariableType t);
-    
+
     /// <summary>
     /// Checks if a variable with the same name exists.
     /// </summary>
@@ -59,7 +59,7 @@ internal interface IEnvService
     /// </summary>
     /// <param name="pm">The model to restore.</param>
     void RestoreItem(EnvModel pm);
-    
+
     /// <summary>
     /// Resets a modified environmental variable to its original value.
     /// </summary>
@@ -81,7 +81,7 @@ internal interface IEnvService
     /// <param name="newPath">The new path value.</param>
     /// <param name="t">The type of environmental variable (User or Machine).</param>
     void UpdatePath(EnvModel model, string newPath, EnvironmentalVariableType t);
-    
+
     /// <summary>
     /// Renames an environmental variable.
     /// </summary>
@@ -140,7 +140,7 @@ internal sealed class EnvService : IEnvService
     private static void LoadVariables(EnvironmentVariableTarget target, BindingList<EnvModel> list)
     {
         var variables = new List<EnvModel>();
-        
+
         foreach (System.Collections.DictionaryEntry de in Environment.GetEnvironmentVariables(target))
         {
             var path = de.Value?.ToString() ?? string.Empty;
@@ -152,7 +152,7 @@ internal sealed class EnvService : IEnvService
                 State = EnvironmentalVariableState.Unchanged,
             });
         }
-        
+
         foreach (var variable in variables.OrderBy(v => v.Name))
         {
             list.Add(variable);

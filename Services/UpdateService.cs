@@ -27,7 +27,7 @@ internal interface IUpdateService
 /// Service for checking for application updates via the GitHub API.
 /// </summary>
 /// <param name="_mr">The metadata repository containing version and API information.</param>
-internal sealed class UpdateService (MetadataRepository _mr ) : IUpdateService
+internal sealed class UpdateService(MetadataRepository _mr) : IUpdateService
 {
     /// <summary>
     /// Checks for available updates by querying the GitHub API for the latest release.

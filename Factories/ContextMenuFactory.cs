@@ -112,7 +112,7 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
     /// </summary>
     /// <param name="pm">The model to restore.</param>
     private void RestoreItem(EnvModel pm) => _pathService.RestoreItem(pm);
-    
+
     /// <summary>
     /// Resets a modified environmental variable to its original state.
     /// </summary>

@@ -4,17 +4,34 @@ using enviro.Static;
 
 namespace enviro.Factories;
 
+/// <summary>
+/// Factory interface for creating DataGridView instances for environmental variables.
+/// </summary>
 internal interface IPathGridFactory
 {
+    /// <summary>
+    /// Creates a configured DataGridView for the specified environmental variable type.
+    /// </summary>
+    /// <param name="tab">The type of environmental variable (User or Machine).</param>
+    /// <returns>A configured DataGridView instance.</returns>
     DataGridView Create(EnvironmentalVariableType tab);
 }
 
+/// <summary>
+/// Factory for creating and configuring DataGridView instances for displaying environmental variables.
+/// </summary>
 internal sealed class PathGridFactory : IPathGridFactory
 {
     private readonly IEnvService ps;
     private readonly IContextMenuFactory cf;
     private readonly IActionFactory<EnvModel> af;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PathGridFactory"/> class.
+    /// </summary>
+    /// <param name="pathService">The service for managing environmental variables.</param>
+    /// <param name="actionFactory">The factory for creating action forms.</param>
+    /// <param name="contextMenuFactory">The factory for creating context menus.</param>
     public PathGridFactory(IEnvService pathService, IActionFactory<EnvModel> actionFactory, IContextMenuFactory contextMenuFactory)
     {
         ps = pathService;
@@ -22,6 +39,12 @@ internal sealed class PathGridFactory : IPathGridFactory
         af = actionFactory;
     }
 
+    /// <summary>
+    /// Creates a DataGridView configured for displaying and editing environmental variables.
+    /// Includes event handlers for double-click editing, right-click context menu, and cell formatting.
+    /// </summary>
+    /// <param name="tab">The type of environmental variable (User or Machine).</param>
+    /// <returns>A fully configured DataGridView instance.</returns>
     public DataGridView Create(EnvironmentalVariableType tab)
     {
         DataGridView grid = new()

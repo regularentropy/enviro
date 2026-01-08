@@ -2,6 +2,10 @@
 
 namespace enviro.Services;
 
+/// <summary>
+/// Repository containing metadata information about the application and its repository.
+/// Provides information for update checking and about dialog.
+/// </summary>
 internal class MetadataRepository
 {
     /// <summary>
@@ -44,7 +48,10 @@ internal class MetadataRepository
     /// </summary>
     public string APILink { get; init; }
 
-
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MetadataRepository"/> class.
+    /// Extracts metadata from the assembly attributes and constructs repository URLs.
+    /// </summary>
     public MetadataRepository()
     {
         var assembly = Assembly.GetExecutingAssembly();
@@ -61,6 +68,11 @@ internal class MetadataRepository
         APILink = $"{APIHost}/repos/{Author}/{Title}/releases/latest";
     }
 
+    /// <summary>
+    /// Extracts the version string from the assembly in format "Major.Minor.Build".
+    /// </summary>
+    /// <param name="assembly">The assembly to extract the version from.</param>
+    /// <returns>The version string in Major.Minor.Build format.</returns>
     private string GetVersion(Assembly assembly)
     {
         var ver = assembly.GetName().Version;

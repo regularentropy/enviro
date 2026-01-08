@@ -63,6 +63,7 @@ internal sealed class PathGridFactory : IPathGridFactory
             EditMode = DataGridViewEditMode.EditProgrammatically,
             AllowUserToResizeRows = false,
             BackgroundColor = Color.White,
+            AllowUserToDeleteRows = false,
         };
 
 #if DEBUG

@@ -139,16 +139,23 @@ internal sealed class EnvService : IEnvService
     /// <param name="list">The list to populate with variables.</param>
     private static void LoadVariables(EnvironmentVariableTarget target, BindingList<EnvModel> list)
     {
+        var variables = new List<EnvModel>();
+        
         foreach (System.Collections.DictionaryEntry de in Environment.GetEnvironmentVariables(target))
         {
             var path = de.Value?.ToString() ?? string.Empty;
-            list.Add(new EnvModel
+            variables.Add(new EnvModel
             {
                 Name = de.Key?.ToString(),
                 Path = path,
                 OrginalPath = path,
                 State = EnvironmentalVariableState.Unchanged,
             });
+        }
+        
+        foreach (var variable in variables.OrderBy(v => v.Name))
+        {
+            list.Add(variable);
         }
     }
 

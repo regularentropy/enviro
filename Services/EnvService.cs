@@ -148,7 +148,7 @@ internal sealed class EnvService : IEnvService
             {
                 Name = de.Key?.ToString(),
                 Path = path,
-                OrginalPath = path,
+                OriginalPath = path,
                 State = EnvironmentalVariableState.Unchanged,
             });
         }
@@ -168,7 +168,7 @@ internal sealed class EnvService : IEnvService
     {
 
         pm.State = EnvironmentalVariableState.Added;
-        pm.OrginalPath = pm.Path;
+        pm.OriginalPath = pm.Path;
 
         GetVariablesByType(t).Add(pm);
     }
@@ -218,7 +218,7 @@ internal sealed class EnvService : IEnvService
         {
             Name = newName,
             Path = foundModel.Path,
-            OrginalPath = string.Empty,
+            OriginalPath = string.Empty,
             State = EnvironmentalVariableState.Added
         };
 
@@ -260,7 +260,7 @@ internal sealed class EnvService : IEnvService
     public void ResetItem(EnvModel pm)
     {
         pm.State = EnvironmentalVariableState.Unchanged;
-        pm.Path = pm.OrginalPath;
+        pm.Path = pm.OriginalPath;
     }
 
     /// <summary>

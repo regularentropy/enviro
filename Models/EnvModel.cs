@@ -4,19 +4,14 @@ namespace enviro.Models;
 
 internal class EnvModel : INotifyPropertyChanged
 {
-    private string _name;
-    private string _path;
-    private string _originalPath;
-    private EnvironmentalVariableState _state = EnvironmentalVariableState.Unchanged;
-
     public string Name
     {
-        get => _name;
+        get;
         set
         {
-            if (_name != value)
+            if (field != value)
             {
-                _name = value;
+                field = value;
                 OnPropertyChanged(nameof(Name));
             }
         }
@@ -24,38 +19,38 @@ internal class EnvModel : INotifyPropertyChanged
 
     public string Path
     {
-        get => _path;
+        get;
         set
         {
-            if (_path != value)
+            if (field != value)
             {
-                _path = value;
+                field = value;
                 OnPropertyChanged(nameof(Path));
             }
         }
     }
 
-    public string OrginalPath
+    public string OriginalPath
     {
-        get => _originalPath;
+        get;
         set
         {
-            if (_originalPath != value)
+            if (field != value)
             {
-                _originalPath = value;
-                OnPropertyChanged(nameof(OrginalPath));
+                field = value;
+                OnPropertyChanged(nameof(OriginalPath));
             }
         }
     }
 
     public EnvironmentalVariableState State
     {
-        get => _state;
+        get;
         set
         {
-            if (_state != value)
+            if (field != value)
             {
-                _state = value;
+                field = value;
                 OnPropertyChanged(nameof(State));
             }
         }

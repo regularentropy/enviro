@@ -107,7 +107,7 @@ internal sealed class EnvAdapter(IEnvService _es) : IPathAdapter
         foreach (var v in models)
         {
             v.State = EnvironmentalVariableState.Unchanged;
-            v.OrginalPath = v.Path;
+            v.OriginalPath = v.Path;
         }
     }
 }

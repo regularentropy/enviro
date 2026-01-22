@@ -52,7 +52,7 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
         cms.Items.Add(new ToolStripSeparator());
         cms.Items.Add("Copy value", null, (_, _) => CopyToClipboard(grid, m => m.Name));
         cms.Items.Add("Copy path", null, (_, _) => CopyToClipboard(grid, m => m.Path));
-        cms.Items.Add("Copy original path", null, (_, _) => CopyToClipboard(grid, m => m.OrginalPath));
+        cms.Items.Add("Copy original path", null, (_, _) => CopyToClipboard(grid, m => m.OriginalPath));
 
         if (pm.State == EnvironmentalVariableState.Deleted)
             cms.Items.Insert(1, new ToolStripMenuItem("Restore", null, (_, _) => RestoreItem(pm)));

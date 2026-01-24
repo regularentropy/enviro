@@ -84,11 +84,31 @@ internal sealed class PathGridFactory : IPathGridFactory
             DataSource = bundle,
             DataMember = tab == EnvironmentalVariableType.User ? nameof(EnvModelBundle.User) : nameof(EnvModelBundle.Machine)
         };
+
+        // Detecting variables with corrupted path
+
+        foreach (var env in bundle.User)
+        {
+            if (ValidationHelper.IsCorrupted(env.Path)) env.State = EnvironmentalVariableState.Corrupted;
+        }
+
+        foreach (var env in bundle.Machine)
+        {
+            if (ValidationHelper.IsCorrupted(env.Path)) env.State = EnvironmentalVariableState.Corrupted;
+        }
+
         grid.DataSource = bindingSource;
 
         grid.ColumnHeaderMouseClick += (s, e) =>
         {
             GridStyleHelper.SortGrid(grid, bindingSource, e.ColumnIndex);
+        };
+
+        // Re-validating env model to detect if the path is corrupted
+        bindingSource.ListChanged += (s, e) =>
+        {
+            EnvModel m = (EnvModel)bindingSource[e.NewIndex]!;
+            if (ValidationHelper.IsCorrupted(m.Path)) m.State = EnvironmentalVariableState.Corrupted;
         };
 
         grid.CellMouseDoubleClick += (s, e) =>

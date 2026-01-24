@@ -103,8 +103,8 @@ internal sealed class EnvService : IEnvService
     /// </summary>
     /// <returns>True if any user or machine variables are not in unchanged state.</returns>
     public bool HasChanges() =>
-        variables.User.Any(v => v.State != EnvironmentalVariableState.Unchanged) ||
-        variables.Machine.Any(v => v.State != EnvironmentalVariableState.Unchanged);
+        variables.User.Any(v => v.State != EnvironmentalVariableState.Unchanged && v.State != EnvironmentalVariableState.Corrupted) ||
+        variables.Machine.Any(v => v.State != EnvironmentalVariableState.Unchanged && v.State != EnvironmentalVariableState.Corrupted);
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EnvService"/> class.

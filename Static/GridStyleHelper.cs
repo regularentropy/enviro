@@ -15,6 +15,7 @@ internal static class GridStyleHelper
     /// Modified: Light yellow background
     /// Deleted: Light coral background with strikeout text
     /// Unchanged: White background
+    /// Corrupted: Red background
     /// </summary>
     /// <param name="e">The cell formatting event arguments.</param>
     /// <param name="model">The environmental variable model associated with the cell.</param>
@@ -34,6 +35,9 @@ internal static class GridStyleHelper
                 break;
             case EnvironmentalVariableState.Unchanged:
                 e.CellStyle.BackColor = Color.White;
+                break;
+            case EnvironmentalVariableState.Corrupted:
+                e.CellStyle.BackColor = Color.Red;
                 break;
         }
     }

@@ -42,14 +42,28 @@ internal static class ValidationHelper
             string[] pathArr = path.Split(';');
             foreach (var item in pathArr)
             {
-                // If one of the path in the structure isn't valid, automatically invalidate the entire structure
-                if (IsPathToDirectory(item) && !IsDirectoryExist(item)) return true;
+                if (!IsValidEntry(item)) return true;
+                return false;
             }
-            return false;
         }
+        if (!IsValidEntry(path)) return true;
+        return false;
+    }
 
-        // Handling normal variables (such as text)
-        if (IsPathToDirectory(path) && !IsDirectoryExist(path)) return true;
+    /// <summary>
+    /// Validating entry (whether the variable has corrupted path or a simple text)
+    /// </summary>
+    /// <param name="path"></param>
+    /// <returns></returns>
+    private static bool IsValidEntry(string path)
+    {
+        // Unwrapping current entry from the %entry% form
+        var extendedPath = Environment.ExpandEnvironmentVariables(path);
+
+        if (!IsPathToDirectory(extendedPath)) return true;
+
+        if (IsDirectoryExist(extendedPath)) return true;
+
         return false;
     }
 
@@ -71,14 +85,11 @@ internal static class ValidationHelper
     /// <returns>True if is the path</returns>
     public static bool IsPathToDirectory(string path)
     {
-        if (string.IsNullOrWhiteSpace(path)) 
+        if (string.IsNullOrWhiteSpace(path))
             return false;
 
-        // The path may contain %var%, which is valid
-        var full_path = Environment.ExpandEnvironmentVariables(path);
-
         // If the path has smth like C:\ in it
-        if (Path.IsPathRooted(full_path)) 
+        if (Path.IsPathRooted(path))
             return true;
 
         // If this is a simple text

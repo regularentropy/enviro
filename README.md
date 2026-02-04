@@ -16,11 +16,11 @@ Enviro addresses these issues with a classic Windows interface and a change trac
 ## Features
 
 - 🎯 **Native WinForms**: Built with Windows Forms for a smaller binary size & performance.
-- 📋 **Change Tracking**: See exactly what was modified, deleted, or created in your environment variables
-- ⚡ **Instant Apply**: Changes take effect immediately without system restart
+- 📋 **Change Tracking**: See exactly what was modified, deleted, or created in your environment variables.
+- ✅ **Path Validation**: Detects environment variables pointing to invalid/non-existent paths.
+- ⚡ **Instant Apply**: Changes take effect immediately without system restart.
 
 ## Roadmap
-- 🚧 **PATH Validation**: Automatic detection of invalid or missing directories in your PATH
 - 🚧 **Import/Export System**: Backup and restore your environment variables
 
 ## Requirements

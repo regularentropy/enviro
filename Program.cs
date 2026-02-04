@@ -7,6 +7,7 @@ namespace enviro
 {
     internal static class Program
     {
+
         [STAThread]
         public static void Main()
         {
@@ -24,6 +25,7 @@ namespace enviro
 
             services.AddSingleton<IUpdateService, UpdateService>();
             services.AddSingleton<IPathAdapter, EnvAdapter>();
+            services.AddSingleton<IConfigService, ConfigService>();
 
             services.AddSingleton<MetadataRepository>();
 
@@ -33,7 +35,16 @@ namespace enviro
             services.AddTransient<AboutForm>();
 
             var provider = services.BuildServiceProvider();
+
+            var configManager = provider.GetRequiredService<IConfigService>();
+
             var mainForm = provider.GetRequiredService<MainForm>();
+
+            // Saving config only when it was changed
+            Application.ApplicationExit += (s, e) =>
+            {
+                if (configManager.IsDirty) configManager.Save();
+            };
 
             Application.Run(mainForm);
         }

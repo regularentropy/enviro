@@ -35,6 +35,7 @@
             checkForUpdatesToolStripMenuItem = new ToolStripMenuItem();
             aboutToolStripMenuItem = new ToolStripMenuItem();
             menuStrip1 = new MenuStrip();
+            optionsToolStripMenuItem = new ToolStripMenuItem();
             AllTab = new TabControl();
             menuStrip1.SuspendLayout();
             SuspendLayout();
@@ -71,9 +72,14 @@
             // 
             // menuStrip1
             // 
-            menuStrip1.Items.AddRange(new ToolStripItem[] { saveToolStripMenuItem, helpToolStripMenuItem });
+            menuStrip1.Items.AddRange(new ToolStripItem[] { saveToolStripMenuItem, optionsToolStripMenuItem, helpToolStripMenuItem });
             resources.ApplyResources(menuStrip1, "menuStrip1");
             menuStrip1.Name = "menuStrip1";
+            // 
+            // optionsToolStripMenuItem
+            // 
+            optionsToolStripMenuItem.Name = "optionsToolStripMenuItem";
+            resources.ApplyResources(optionsToolStripMenuItem, "optionsToolStripMenuItem");
             // 
             // AllTab
             // 
@@ -104,5 +110,6 @@
         private ToolStripMenuItem aboutToolStripMenuItem;
         private MenuStrip menuStrip1;
         private TabControl AllTab;
+        private ToolStripMenuItem optionsToolStripMenuItem;
     }
 }

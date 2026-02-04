@@ -17,9 +17,10 @@ internal partial class MainForm : Form
     private readonly IEnvService _envService;
     private readonly IPathAdapter _pathAdapter;
     private readonly IUpdateService _updateService;
+    private readonly IConfigService _configService;
     private readonly IServiceProvider _serviceProvider;
 
-    public MainForm(IEnvService es, IPathAdapter pa, IUpdateService us, ITabFactory tf, IServiceProvider sp, MetadataRepository mr)
+    public MainForm(IEnvService es, IPathAdapter pa, IUpdateService us, ITabFactory tf, IServiceProvider sp, IConfigService cs, MetadataRepository mr)
     {
         InitializeComponent();
 
@@ -30,6 +31,7 @@ internal partial class MainForm : Form
         _envService = es;
         _pathAdapter = pa;
         _serviceProvider = sp;
+        _configService = cs;
 
         this.Name = Assembly.GetExecutingAssembly().GetName().Name;
 
@@ -45,6 +47,30 @@ internal partial class MainForm : Form
             _tabFactory.Create(EnvironmentalVariableType.User),
             _tabFactory.Create(EnvironmentalVariableType.Machine),
         ]);
+
+        var corruptedVarsButton = new ToolStripMenuItem("Check for corrupted variables")
+        {
+            CheckOnClick = true,
+            CheckState = _configService.Config.EnableCorruptedValidation ? CheckState.Checked : CheckState.Unchecked,
+            ToolTipText = "Checks whether a variable points to a path or file that doesn't exist."
+        };
+
+        corruptedVarsButton.CheckedChanged += CorruptedVarsButtonClicked;
+        optionsToolStripMenuItem.DropDownItems.Add(corruptedVarsButton);
+    }
+
+    private void CorruptedVarsButtonClicked(object? sender, EventArgs e)
+    {
+        _configService.Config.EnableCorruptedValidation = !_configService.Config.EnableCorruptedValidation;
+        var result = DialogHelper.ShowConfirm(
+            "Application restart required",
+            "Apply changes and restart now?"
+        );
+        if (result == DialogResult.OK)
+        {
+            Application.Restart();
+
+        }
     }
 
     private void AboutButtonClicked(object sender, EventArgs e)

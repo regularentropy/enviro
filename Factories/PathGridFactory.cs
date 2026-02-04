@@ -25,6 +25,7 @@ internal sealed class PathGridFactory : IPathGridFactory
     private readonly IEnvService ps;
     private readonly IContextMenuFactory cf;
     private readonly IActionFactory<EnvModel> af;
+    private readonly IConfigService _cs;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PathGridFactory"/> class.
@@ -32,16 +33,17 @@ internal sealed class PathGridFactory : IPathGridFactory
     /// <param name="pathService">The service for managing environmental variables.</param>
     /// <param name="actionFactory">The factory for creating action forms.</param>
     /// <param name="contextMenuFactory">The factory for creating context menus.</param>
-    public PathGridFactory(IEnvService pathService, IActionFactory<EnvModel> actionFactory, IContextMenuFactory contextMenuFactory)
+    public PathGridFactory(IEnvService pathService, IActionFactory<EnvModel> actionFactory, IContextMenuFactory contextMenuFactory, IConfigService cs)
     {
         ps = pathService;
         cf = contextMenuFactory;
         af = actionFactory;
+        _cs = cs;
     }
 
     /// <summary>
     /// Creates a DataGridView configured for displaying and editing environmental variables.
-    /// Includes event handlers for double-click editing, right-click context menu, and cell formatting.
+    /// Includes event handlers for double-click editing, corrupted variable check, right-click context menu, and cell formatting.
     /// </summary>
     /// <param name="tab">The type of environmental variable (User or Machine).</param>
     /// <returns>A fully configured DataGridView instance.</returns>
@@ -85,18 +87,6 @@ internal sealed class PathGridFactory : IPathGridFactory
             DataMember = tab == EnvironmentalVariableType.User ? nameof(EnvModelBundle.User) : nameof(EnvModelBundle.Machine)
         };
 
-        // Detecting variables with corrupted path
-
-        foreach (var env in bundle.User)
-        {
-            if (ValidationHelper.IsCorrupted(env.Path)) env.State = EnvironmentalVariableState.Corrupted;
-        }
-
-        foreach (var env in bundle.Machine)
-        {
-            if (ValidationHelper.IsCorrupted(env.Path)) env.State = EnvironmentalVariableState.Corrupted;
-        }
-
         grid.DataSource = bindingSource;
 
         grid.ColumnHeaderMouseClick += (s, e) =>
@@ -104,12 +94,23 @@ internal sealed class PathGridFactory : IPathGridFactory
             GridStyleHelper.SortGrid(grid, bindingSource, e.ColumnIndex);
         };
 
-        // Re-validating env model to detect if the path is corrupted
-        bindingSource.ListChanged += (s, e) =>
+        // Corrupted variable detection
+        if (_cs.Config.EnableCorruptedValidation)
         {
-            EnvModel m = (EnvModel)bindingSource[e.NewIndex]!;
-            if (ValidationHelper.IsCorrupted(m.Path)) m.State = EnvironmentalVariableState.Corrupted;
-        };
+            // Re-validating env model to detect if the path is corrupted
+            bindingSource.ListChanged += (s, e) =>
+            {
+                EnvModel m = (EnvModel)bindingSource[e.NewIndex]!;
+                MarkIfCorrupted(m);
+            };
+
+            // Detecting env variables with corrupted path
+
+            foreach (var env in bundle.User) MarkIfCorrupted(env);
+
+            foreach (var env in bundle.Machine) MarkIfCorrupted(env);
+
+        }
 
         grid.CellMouseDoubleClick += (s, e) =>
         {
@@ -155,5 +156,10 @@ internal sealed class PathGridFactory : IPathGridFactory
             };
 
         return grid;
+    }
+
+    public void MarkIfCorrupted(EnvModel env)
+    {
+        if (ValidationHelper.IsCorrupted(env.Path)) env.State = EnvironmentalVariableState.Corrupted;
     }
 }

@@ -1,6 +1,7 @@
 ﻿using enviro.Models;
 using enviro.Services;
 using enviro.Static;
+using System.ComponentModel;
 
 namespace enviro.Factories;
 
@@ -100,6 +101,10 @@ internal sealed class PathGridFactory : IPathGridFactory
             // Re-validating env model to detect if the path is corrupted
             bindingSource.ListChanged += (s, e) =>
             {
+                // index resets to -1 on change
+                if (e.NewIndex < 0)
+                    return;
+
                 EnvModel m = (EnvModel)bindingSource[e.NewIndex]!;
                 MarkIfCorrupted(m);
             };

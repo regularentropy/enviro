@@ -183,9 +183,12 @@ internal partial class MainForm : Form
 
         // ApplyAsync completes synchronously today, so this runs to the end before the
         // close is re-issued.
-        if (!await _pathAdapter.ApplyAsync())
+        var result = await _pathAdapter.ApplyAsync();
+
+        // A failed run leaves rows unwritten, so the window stays open.
+        if (!result.Succeeded)
         {
-            ShowApplyFailure();
+            ShowApplyFailure(result);
             return;
         }
 
@@ -452,9 +455,9 @@ internal partial class MainForm : Form
 
         var result = await _pathAdapter.ApplyAsync();
 
-        if (!result)
+        if (!result.Succeeded)
         {
-            ShowApplyFailure();
+            ShowApplyFailure(result);
             return;
         }
 
@@ -484,13 +487,30 @@ internal partial class MainForm : Form
     }
 
     /// <summary>
-    /// Reports a failed apply with the pending work that is still left behind.
+    /// Reports a failed apply: the row that stopped the run, why, and the work still left behind.
     /// </summary>
-    private void ShowApplyFailure() =>
+    /// <param name="result">The outcome of the failed run.</param>
+    private void ShowApplyFailure(ApplyResult result) =>
         DialogHelper.ShowError(
-            $"Failed to apply changes.\n{DescribePendingChanges()}\nSome variables may already have been written.",
+            "Failed to apply changes.\n" +
+            $"{result.FailedScope} variable \"{result.FailedModel?.Name}\" could not be written: {result.Error}\n" +
+            $"{DescribeWritten(result)}\n" +
+            $"{DescribePendingChanges()}",
             "Apply"
         );
+
+    /// <summary>
+    /// Says how many rows the failed run had already written.
+    /// </summary>
+    /// <param name="result">The outcome of the failed run.</param>
+    /// <returns>A sentence such as "3 changes were written before the failure."</returns>
+    private static string DescribeWritten(ApplyResult result)
+    {
+        var written = result.UserApplied + result.MachineApplied;
+        return written == 0
+            ? "No changes were written."
+            : $"{written} {(written == 1 ? "change was" : "changes were")} written before the failure.";
+    }
 
     /// <summary>
     /// Counts the rows pending across both scopes.

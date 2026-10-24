@@ -11,8 +11,30 @@ internal interface IPathAdapter
     /// <summary>
     /// Applies all pending environmental variable changes to the system.
     /// </summary>
-    /// <returns>A task that returns true if successful, false otherwise.</returns>
-    Task<bool> ApplyAsync();
+    /// <returns>What the run managed to write, and which row stopped it.</returns>
+    Task<ApplyResult> ApplyAsync();
+}
+
+/// <summary>
+/// Outcome of one apply run. Rows are written and cleaned one at a time, so a failure
+/// leaves the rows written before it clean and the failing row (and everything after it) dirty.
+/// </summary>
+/// <param name="UserApplied">Rows written in the user scope.</param>
+/// <param name="MachineApplied">Rows written in the machine scope.</param>
+/// <param name="FailedScope">Scope of the row that threw, or null when nothing failed.</param>
+/// <param name="FailedModel">The row that threw, or null when nothing failed.</param>
+/// <param name="Error">Message of the exception that stopped the run, or null when nothing failed.</param>
+internal sealed record ApplyResult(
+    int UserApplied,
+    int MachineApplied,
+    EnvironmentalVariableType? FailedScope,
+    EnvModel? FailedModel,
+    string? Error)
+{
+    /// <summary>
+    /// Whether every pending change was written.
+    /// </summary>
+    public bool Succeeded => Error is null;
 }
 
 /// <summary>
@@ -26,88 +48,92 @@ internal sealed class EnvAdapter(IEnvService _es) : IPathAdapter
     /// Applies all pending changes to the system environment variables.
     /// User variables are always applied; machine variables are only applied if running as administrator.
     /// </summary>
-    /// <returns>A task that returns true if all changes were applied successfully, false if an error occurred.</returns>
-    public Task<bool> ApplyAsync()
+    /// <returns>The rows written per scope, and the row that stopped the run if one threw.</returns>
+    public Task<ApplyResult> ApplyAsync()
     {
-        try
+        var (userApplied, userFailed, userError) = ApplyAndClean(EnvironmentalVariableType.User, _es.GetUserVariables());
+
+        if (userFailed is not null)
+            return Task.FromResult(new ApplyResult(userApplied, 0, EnvironmentalVariableType.User, userFailed, userError));
+
+        var machineApplied = 0;
+
+        if (AdminChecker.IsAdmin())
         {
-            bool isAdmin = AdminChecker.IsAdmin();
+            var machine = ApplyAndClean(EnvironmentalVariableType.Machine, _es.GetMachineVariables());
+            machineApplied = machine.Applied;
 
-            var userVars = _es.GetUserVariables();
-            ApplyAndClean(EnvironmentalVariableType.User, userVars);
-
-            if (isAdmin)
+            if (machine.Failed is not null)
             {
-                var machineVars = _es.GetMachineVariables();
-                ApplyAndClean(EnvironmentalVariableType.Machine, machineVars);
+                return Task.FromResult(
+                    new ApplyResult(userApplied, machineApplied, EnvironmentalVariableType.Machine, machine.Failed, machine.Error));
             }
-            return Task.FromResult(true);
         }
-        catch
-        {
-            return Task.FromResult(false);
-        }
+
+        return Task.FromResult(new ApplyResult(userApplied, machineApplied, null, null, null));
     }
 
     /// <summary>
-    /// Applies changes and cleans up the model collection for the specified variable type.
+    /// Writes every pending row of one scope, cleaning each row as soon as it is written.
+    /// Stops at the first row that throws.
     /// </summary>
     /// <param name="t">The type of environmental variable (User or Machine).</param>
     /// <param name="models">The collection of models to process.</param>
-    private void ApplyAndClean(EnvironmentalVariableType t, BindingList<EnvModel> models)
+    /// <returns>The number of rows written, plus the row and error message that stopped the run (if any).</returns>
+    private static (int Applied, EnvModel? Failed, string? Error) ApplyAndClean(
+        EnvironmentalVariableType t, BindingList<EnvModel> models)
     {
-        Apply(t, models);
-        Clean(models);
-    }
+        var target = EnvTypeConverter.ToTarget(t);
+        var applied = 0;
 
-    /// <summary>
-    /// Applies state changes (Added, Modified, Deleted) to the system environment.
-    /// </summary>
-    /// <param name="t">The type of environmental variable (User or Machine).</param>
-    /// <param name="models">The collection of models to process.</param>
-    private void Apply(EnvironmentalVariableType t, BindingList<EnvModel> models)
-    {
-        var envVarType = EnvTypeConverter.ToTarget(t);
+        // Deleted first, so a rename's old key is removed before its new key is written.
+        EnvironmentalVariableState[] order =
+        [
+            EnvironmentalVariableState.Deleted,
+            EnvironmentalVariableState.Modified,
+            EnvironmentalVariableState.Added,
+        ];
 
-        ApplyStateChanges(models, EnvironmentalVariableState.Deleted, envVarType, (v, target) =>
-            Environment.SetEnvironmentVariable(v.Name, null, target));
-
-        ApplyStateChanges(models, EnvironmentalVariableState.Modified, envVarType, (v, target) =>
-            Environment.SetEnvironmentVariable(v.Name, v.Path, target));
-
-        ApplyStateChanges(models, EnvironmentalVariableState.Added, envVarType, (v, target) =>
-            Environment.SetEnvironmentVariable(v.Name, v.Path, target));
-    }
-
-    /// <summary>
-    /// Applies a specific state change to all models with the specified state.
-    /// </summary>
-    /// <param name="models">The collection of models to process.</param>
-    /// <param name="state">The state to filter by.</param>
-    /// <param name="target">The environment variable target (User or Machine).</param>
-    /// <param name="action">The action to perform on each matching model.</param>
-    private void ApplyStateChanges(BindingList<EnvModel> models, EnvironmentalVariableState state,
-        EnvironmentVariableTarget target, Action<EnvModel, EnvironmentVariableTarget> action)
-    {
-        foreach (var v in models.Where(s => s.State == state))
-            action(v, target);
-    }
-
-    /// <summary>
-    /// Removes deleted items from the collection and resets all remaining items to unchanged state.
-    /// Updates original paths to match current paths.
-    /// </summary>
-    /// <param name="models">The collection of models to clean.</param>
-    private void Clean(BindingList<EnvModel> models)
-    {
-        var toRemove = models.Where(v => v.State == EnvironmentalVariableState.Deleted).ToList();
-        foreach (var item in toRemove)
-            models.Remove(item);
-
-        foreach (var v in models)
+        foreach (var state in order)
         {
-            v.State = EnvironmentalVariableState.Unchanged;
-            v.OriginalPath = v.Path;
+            // Snapshot: a written deleted row leaves the list while this loop runs.
+            foreach (var model in models.Where(m => m.State == state).ToList())
+            {
+                try
+                {
+                    Environment.SetEnvironmentVariable(
+                        model.Name,
+                        state == EnvironmentalVariableState.Deleted ? null : model.Path,
+                        target);
+                }
+                catch (Exception ex)
+                {
+                    return (applied, model, ex.Message);
+                }
+
+                MarkApplied(models, model, state);
+                applied++;
+            }
         }
+
+        return (applied, null, null);
+    }
+
+    /// <summary>
+    /// Sets a written row back to <c>Unchanged</c> and syncs its baseline; a deleted row leaves the list.
+    /// </summary>
+    /// <param name="models">The collection the row belongs to.</param>
+    /// <param name="model">The row that was just written.</param>
+    /// <param name="appliedState">The state the row had when it was written.</param>
+    private static void MarkApplied(BindingList<EnvModel> models, EnvModel model, EnvironmentalVariableState appliedState)
+    {
+        if (appliedState == EnvironmentalVariableState.Deleted)
+        {
+            models.Remove(model);
+            return;
+        }
+
+        model.State = EnvironmentalVariableState.Unchanged;
+        model.OriginalPath = model.Path;
     }
 }

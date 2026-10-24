@@ -55,5 +55,8 @@ internal class EntryFormFactory(IServiceProvider _sp) : IActionFactory<EnvModel>
     /// <param name="t">The type of environmental variable (User or Machine).</param>
     /// <returns>An EditForm instance.</returns>
     public Form Create(EnvModel model, EnvironmentalVariableType t) =>
-        new EditForm(_sp.GetRequiredService<IEnvService>().GetScope(t), model);
+        new EditForm(
+            _sp.GetRequiredService<IEnvService>().GetScope(t),
+            model,
+            _sp.GetRequiredService<ICorruptedPathService>());
 }

@@ -1,4 +1,4 @@
-using enviro.Static;
+using enviro.Services;
 using Microsoft.WindowsAPICodePack.Dialogs;
 using System.Diagnostics;
 
@@ -13,6 +13,8 @@ internal partial class PathEntriesControl : UserControl
     private const string ExistsText = "Exists";
     private const string NotPathText = "Not a path";
 
+    private readonly ICorruptedPathService? _corruption;
+
     private bool _suppressChange;
 
     /// <summary>
@@ -20,8 +22,17 @@ internal partial class PathEntriesControl : UserControl
     /// </summary>
     public event EventHandler? ValueChanged;
 
-    public PathEntriesControl()
+    /// <summary>
+    /// Design-time constructor: without the service the existence column reports "Not a path"
+    /// and the Open action is refused.
+    /// </summary>
+    public PathEntriesControl() : this(null) { }
+
+    /// <param name="corruption">The service that classifies a segment; optional for the designer.</param>
+    public PathEntriesControl(ICorruptedPathService? corruption)
     {
+        _corruption = corruption;
+
         InitializeComponent();
 
         // Follow the font/DPI size like the main grid instead of a fixed pixel height.
@@ -108,25 +119,25 @@ internal partial class PathEntriesControl : UserControl
 
         var row = segmentsGrid.Rows[rowIndex];
         var value = row.Cells[valueColumn.Index].Value?.ToString() ?? string.Empty;
-        var expanded = Environment.ExpandEnvironmentVariables(value);
         var cell = row.Cells[existenceColumn.Index];
 
-        if (!ValidationHelper.IsPathToDirectory(expanded))
+        switch (_corruption?.ValidateSegment(value) ?? PathSegmentState.NotPath)
         {
-            cell.Value = NotPathText;
-            cell.Style.ForeColor = SystemColors.GrayText;
-            return;
-        }
+            case PathSegmentState.Exists:
+                cell.Value = ExistsText;
+                cell.Style.ForeColor = Color.ForestGreen;
+                break;
 
-        if (ValidationHelper.IsMissingPath(value))
-        {
-            cell.Value = MissingText;
-            cell.Style.ForeColor = Color.Firebrick;
-            return;
-        }
+            case PathSegmentState.Missing:
+                cell.Value = MissingText;
+                cell.Style.ForeColor = Color.Firebrick;
+                break;
 
-        cell.Value = ExistsText;
-        cell.Style.ForeColor = Color.ForestGreen;
+            default:
+                cell.Value = NotPathText;
+                cell.Style.ForeColor = SystemColors.GrayText;
+                break;
+        }
     }
 
     /// <summary>
@@ -269,15 +280,10 @@ internal partial class PathEntriesControl : UserControl
 
         var value = segmentsGrid.CurrentRow?.Cells[valueColumn.Index].Value?.ToString()?.Trim();
 
-        if (string.IsNullOrWhiteSpace(value))
+        if (string.IsNullOrWhiteSpace(value) || _corruption?.ValidateSegment(value) != PathSegmentState.Exists)
             return false;
 
-        var expanded = Environment.ExpandEnvironmentVariables(value);
-
-        if (!Directory.Exists(expanded) && !File.Exists(expanded))
-            return false;
-
-        target = expanded;
+        target = Environment.ExpandEnvironmentVariables(value);
         return true;
     }
 }

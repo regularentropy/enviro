@@ -14,7 +14,7 @@ internal partial class EditForm : AbstractEntryForm
     private readonly PathEntriesControl _entriesControl;
     private bool _entriesMode;
 
-    public EditForm(IEnvScope scope, EnvModel pm) : base(scope)
+    public EditForm(IEnvScope scope, EnvModel pm, ICorruptedPathService corruption) : base(scope)
     {
         _pm_ref = pm;
 
@@ -25,7 +25,7 @@ internal partial class EditForm : AbstractEntryForm
         addButton.Text = "Save";
 
         // Sits in the value row next to the plain text box; only one of the two is visible.
-        _entriesControl = new PathEntriesControl { Dock = DockStyle.Fill, Visible = false };
+        _entriesControl = new PathEntriesControl(corruption) { Dock = DockStyle.Fill, Visible = false };
         _entriesControl.ValueChanged += (_, _) => pathTextBox.Text = _entriesControl.JoinedValue;
         tableLayoutPanel3.Controls.Add(_entriesControl, 0, 1);
 

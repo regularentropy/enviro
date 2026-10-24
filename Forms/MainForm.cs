@@ -21,6 +21,7 @@ internal partial class MainForm : Form
     private readonly IActionFactory<EnvModel> _entryFormFactory;
     private readonly IUpdateService _updateService;
     private readonly IConfigService _configService;
+    private readonly ICorruptedPathService _corruption;
     private readonly IAppLog _log;
     private readonly IServiceProvider _serviceProvider;
 
@@ -34,7 +35,7 @@ internal partial class MainForm : Form
     // Clears the transient message (applied changes, failed settings save) from the status strip.
     private readonly System.Windows.Forms.Timer _applyStatusTimer;
 
-    public MainForm(IEnvService es, IPathAdapter pa, IActionFactory<EnvModel> af, IUpdateService us, ITabFactory tf, IPathGridFactory gf, IServiceProvider sp, IConfigService cs, IAppLog log, MetadataRepository mr)
+    public MainForm(IEnvService es, IPathAdapter pa, IActionFactory<EnvModel> af, IUpdateService us, ITabFactory tf, IPathGridFactory gf, IServiceProvider sp, IConfigService cs, IAppLog log, MetadataRepository mr, ICorruptedPathService corruption)
     {
         InitializeComponent();
 
@@ -46,6 +47,7 @@ internal partial class MainForm : Form
         _entryFormFactory = af;
         _serviceProvider = sp;
         _configService = cs;
+        _corruption = corruption;
         _log = log;
 
         ApplyElevationWindowGeometry();
@@ -106,8 +108,13 @@ internal partial class MainForm : Form
         // Persist immediately so the choice survives even a crash; the exit hook stays as-is.
         _configService.Save();
 
-        // Mark every row when enabled, clear every red row when disabled.
-        _gridFactory.RescanAll();
+        // Enabling reviews both scopes shortly after; disabling cancels the pending work and
+        // clears every mark.
+        if (item.Checked)
+            _corruption.RequestScanAll();
+        else
+            _corruption.ClearOverlay();
+
         UpdateStatusStrip();
     }
 
@@ -288,8 +295,8 @@ internal partial class MainForm : Form
 
         _envService.Reload();
 
-        // The reloaded models start clean; re-run the corruption pass and refresh the status strip.
-        _gridFactory.RescanAll();
+        // The reloaded models start clean; review both scopes again and refresh the status strip.
+        _corruption.RequestScanAll();
         UpdateActionState();
     }
 
@@ -506,6 +513,9 @@ internal partial class MainForm : Form
     {
         // The exit hook still saves after the window is gone; it must not touch a dead form.
         _configService.SaveFailed -= OnConfigSaveFailed;
+
+        // No scan may outlive the window: pending work is dropped and in-flight verdicts discarded.
+        _corruption.Cancel();
 
         _applyStatusTimer.Stop();
         base.OnFormClosed(e);

@@ -1,6 +1,7 @@
 ﻿using enviro.Models;
 using enviro.Services;
 using enviro.Static;
+using System.ComponentModel;
 
 namespace enviro.Factories;
 
@@ -15,13 +16,6 @@ internal interface IPathGridFactory
     /// <param name="tab">The type of environmental variable (User or Machine).</param>
     /// <returns>A configured DataGridView instance.</returns>
     DataGridView Create(EnvironmentalVariableType tab);
-
-    /// <summary>
-    /// Re-evaluates the corrupted-path overlay for every variable in both scopes.
-    /// Clears the overlay instead when <see cref="IConfigService.Config"/>'s
-    /// corrupted-validation option is off.
-    /// </summary>
-    void RescanAll();
 
     /// <summary>
     /// Connects a filter box to the grid. The grid hides rows whose name and value do not contain
@@ -47,7 +41,7 @@ internal sealed class PathGridFactory : IPathGridFactory
     private readonly IEnvService ps;
     private readonly IContextMenuFactory cf;
     private readonly IActionFactory<EnvModel> af;
-    private readonly IConfigService _cs;
+    private readonly ICorruptedPathService _corruption;
 
     // Filter boxes are owned by the tab pages; the grids live for the lifetime of the window.
     private readonly Dictionary<DataGridView, TextBox> _filters = [];
@@ -58,12 +52,13 @@ internal sealed class PathGridFactory : IPathGridFactory
     /// <param name="pathService">The service for managing environmental variables.</param>
     /// <param name="actionFactory">The factory for creating action forms.</param>
     /// <param name="contextMenuFactory">The factory for creating context menus.</param>
-    public PathGridFactory(IEnvService pathService, IActionFactory<EnvModel> actionFactory, IContextMenuFactory contextMenuFactory, IConfigService cs)
+    /// <param name="corruption">The service that owns the corrupted-path overlay.</param>
+    public PathGridFactory(IEnvService pathService, IActionFactory<EnvModel> actionFactory, IContextMenuFactory contextMenuFactory, ICorruptedPathService corruption)
     {
         ps = pathService;
         cf = contextMenuFactory;
         af = actionFactory;
-        _cs = cs;
+        _corruption = corruption;
     }
 
     /// <summary>
@@ -132,26 +127,25 @@ internal sealed class PathGridFactory : IPathGridFactory
             ApplyFilter(grid);
         };
 
-        // Corrupted variable detection. The subscription is always attached so turning the
-        // option on never requires rebuilding the grid; the handler checks the config instead.
+        // Corrupted variable detection: the service scans off the UI thread and debounces, so a
+        // burst of changes costs one scan. The subscription is always attached so turning the
+        // option on never requires rebuilding the grid.
         bindingSource.ListChanged += (s, e) =>
         {
             // Rows may have been added, removed or reordered; keep the filter applied.
             ApplyFilter(grid);
 
-            // index resets to -1 on change
-            if (e.NewIndex < 0 || !_cs.Config.EnableCorruptedValidation)
+            // The overlay write is itself a list change; only value changes ask for a new scan.
+            if (e.ListChangedType == ListChangedType.ItemChanged
+                && e.PropertyDescriptor?.Name == nameof(EnvModel.IsCorrupted))
                 return;
 
-            EnvModel m = (EnvModel)bindingSource[e.NewIndex]!;
-            MarkIfCorrupted(m);
+            _corruption.RequestScan(scope);
         };
 
-        // Mark the rows already bound to this grid when validation is enabled.
-        if (_cs.Config.EnableCorruptedValidation)
-        {
-            foreach (var env in scope.Rows.OfType<EnvModel>()) MarkIfCorrupted(env);
-        }
+        // Review the rows already bound to this grid; the service ignores the request while
+        // validation is off.
+        _corruption.RequestScan(scope);
 
         grid.CellMouseDoubleClick += (s, e) =>
         {
@@ -205,30 +199,6 @@ internal sealed class PathGridFactory : IPathGridFactory
             };
 
         return grid;
-    }
-
-    /// <summary>
-    /// Marks or clears the corrupted-path overlay of an environmental variable without touching its edit state.
-    /// </summary>
-    /// <param name="env">The model to validate.</param>
-    public void MarkIfCorrupted(EnvModel env) => env.IsCorrupted = ValidationHelper.IsCorrupted(env.Path);
-
-    /// <summary>
-    /// Re-evaluates the corrupted-path overlay for every variable in both scopes, or clears it
-    /// when the option is off.
-    /// </summary>
-    public void RescanAll()
-    {
-        IEnvScope[] scopes = [ps.User, ps.Machine];
-
-        foreach (var scope in scopes)
-        {
-            foreach (var env in scope.Rows.OfType<EnvModel>())
-            {
-                if (_cs.Config.EnableCorruptedValidation) MarkIfCorrupted(env);
-                else env.IsCorrupted = false;
-            }
-        }
     }
 
     /// <summary>

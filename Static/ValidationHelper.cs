@@ -65,26 +65,6 @@ internal static class ValidationHelper
     private static bool ContainsInvalidValueCharacters(string value) => value.Contains('\0');
 
     /// <summary>
-    /// Validates if the path is corrupted.
-    /// </summary>
-    /// <param name="path">The variable value to check.</param>
-    /// <returns>True if any path-like segment is missing.</returns>
-    public static bool IsCorrupted(string path)
-    {
-        // PATH-like values hold several entries separated by ';'. Validate every non-blank segment.
-        foreach (var entry in path.Split(';'))
-        {
-            if (string.IsNullOrWhiteSpace(entry))
-                continue;
-
-            if (!IsValidEntry(entry))
-                return true;
-        }
-
-        return false;
-    }
-
-    /// <summary>
     /// Whether a variable is worth editing as a <c>;</c>-separated list of entries: its name is
     /// <c>PATH</c> (case-insensitive) or its value already contains a separator.
     /// </summary>

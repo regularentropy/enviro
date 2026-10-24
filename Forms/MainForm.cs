@@ -18,6 +18,7 @@ internal partial class MainForm : Form
     private readonly IPathGridFactory _gridFactory;
     private readonly IEnvService _envService;
     private readonly IPathAdapter _pathAdapter;
+    private readonly IActionFactory<EnvModel> _entryFormFactory;
     private readonly IUpdateService _updateService;
     private readonly IConfigService _configService;
     private readonly IServiceProvider _serviceProvider;
@@ -26,7 +27,7 @@ internal partial class MainForm : Form
     // apply-then-close) so the close guard does not ask a second time.
     private bool _isRestarting;
 
-    public MainForm(IEnvService es, IPathAdapter pa, IUpdateService us, ITabFactory tf, IPathGridFactory gf, IServiceProvider sp, IConfigService cs, MetadataRepository mr)
+    public MainForm(IEnvService es, IPathAdapter pa, IActionFactory<EnvModel> af, IUpdateService us, ITabFactory tf, IPathGridFactory gf, IServiceProvider sp, IConfigService cs, MetadataRepository mr)
     {
         InitializeComponent();
 
@@ -37,6 +38,7 @@ internal partial class MainForm : Form
         _updateService = us;
         _envService = es;
         _pathAdapter = pa;
+        _entryFormFactory = af;
         _serviceProvider = sp;
         _configService = cs;
 
@@ -55,9 +57,15 @@ internal partial class MainForm : Form
             _tabFactory.Create(EnvironmentalVariableType.Machine),
         ]);
 
-        _envService.GetUserVariables().ListChanged += (_, _) => UpdateApplyState();
-        _envService.GetMachineVariables().ListChanged += (_, _) => UpdateApplyState();
-        UpdateApplyState();
+        // Keep the toolbar's Add/Edit/Delete state in sync with the active tab and row.
+        AllTab.SelectedIndexChanged += (_, _) => UpdateActionState();
+
+        foreach (var grid in AllTab.TabPages.Cast<TabPage>().SelectMany(t => t.Controls.OfType<DataGridView>()))
+            grid.SelectionChanged += (_, _) => UpdateActionState();
+
+        _envService.GetUserVariables().ListChanged += (_, _) => UpdateActionState();
+        _envService.GetMachineVariables().ListChanged += (_, _) => UpdateActionState();
+        UpdateActionState();
 
         var corruptedVarsButton = new ToolStripMenuItem("Check for corrupted variables")
         {
@@ -175,9 +183,86 @@ internal partial class MainForm : Form
     }
 
     /// <summary>
-    /// Enables the Apply entry only while there is pending work.
+    /// The grid of the currently selected tab.
     /// </summary>
-    private void UpdateApplyState() => toolStripMenuItem1.Enabled = _envService.HasChanges();
+    private DataGridView? GetActiveGrid() =>
+        AllTab.SelectedTab?.Controls.OfType<DataGridView>().FirstOrDefault();
+
+    /// <summary>
+    /// Enables the toolbar actions for the active tab's scope and selection, and refreshes Apply.
+    /// </summary>
+    private void UpdateActionState()
+    {
+        var grid = GetActiveGrid();
+        var canMutate = grid is not null && AdminChecker.CanMutate(grid);
+        var hasSelection = grid is not null && ControlHelper.GetCurrentModel(grid) is not null;
+
+        addToolStripButton.Enabled = canMutate;
+        editToolStripButton.Enabled = canMutate && hasSelection;
+        deleteToolStripButton.Enabled = canMutate && hasSelection;
+
+        UpdateApplyState();
+    }
+
+    private void CreateEntryClicked(object? sender, EventArgs e)
+    {
+        if (GetActiveGrid() is { } grid)
+            RowActionHelper.Create(grid, _entryFormFactory);
+    }
+
+    private void EditEntryClicked(object? sender, EventArgs e)
+    {
+        if (GetActiveGrid() is { } grid)
+            RowActionHelper.Edit(grid, _entryFormFactory);
+    }
+
+    private void DeleteEntryClicked(object? sender, EventArgs e)
+    {
+        if (GetActiveGrid() is { } grid)
+            RowActionHelper.Delete(grid, _envService);
+    }
+
+    /// <summary>
+    /// Routes the keyboard shortcuts to the toolbar actions, respecting their enablement.
+    /// </summary>
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (keyData == (Keys.Control | Keys.N) && addToolStripButton.Enabled)
+        {
+            addToolStripButton.PerformClick();
+            return true;
+        }
+
+        if ((keyData == Keys.F2 || keyData == (Keys.Control | Keys.E)) && editToolStripButton.Enabled)
+        {
+            editToolStripButton.PerformClick();
+            return true;
+        }
+
+        if (keyData == Keys.Delete && deleteToolStripButton.Enabled)
+        {
+            deleteToolStripButton.PerformClick();
+            return true;
+        }
+
+        if (keyData == (Keys.Control | Keys.S) && applyToolStripButton.Enabled)
+        {
+            applyToolStripButton.PerformClick();
+            return true;
+        }
+
+        return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    /// <summary>
+    /// Enables the Apply entry and toolbar button only while there is pending work.
+    /// </summary>
+    private void UpdateApplyState()
+    {
+        var enabled = _envService.HasChanges();
+        toolStripMenuItem1.Enabled = enabled;
+        applyToolStripButton.Enabled = enabled;
+    }
 
     private async void Apply(object sender, EventArgs e)
     {

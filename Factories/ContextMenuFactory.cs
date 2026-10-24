@@ -16,6 +16,13 @@ internal interface IContextMenuFactory
     /// <param name="pm">The environmental variable model associated with the selected row.</param>
     /// <returns>A configured ContextMenuStrip.</returns>
     ContextMenuStrip CreateForPathGrid(DataGridView grid, EnvModel pm);
+
+    /// <summary>
+    /// Creates the context menu for a click on the grid's empty area.
+    /// </summary>
+    /// <param name="grid">The DataGridView the click landed on.</param>
+    /// <returns>A menu with Create, or null when the scope is read-only.</returns>
+    ContextMenuStrip? CreateForEmptyArea(DataGridView grid);
 }
 
 /// <summary>
@@ -52,7 +59,7 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
         bool canMutate = AdminChecker.CanMutate(grid);
 
         if (canMutate)
-            cms.Items.Add("Create", null, (_, _) => AppendToPath(grid));
+            cms.Items.Add("Create", null, (_, _) => RowActionHelper.Create(grid, _entryFormFactory));
 
         if (pm.State == EnvironmentalVariableState.Deleted)
             cms.Items.Add("Restore", null, (_, _) => RestoreItem(pm));
@@ -61,8 +68,8 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
 
         if (canMutate)
         {
-            cms.Items.Add("Edit", null, (_, _) => CreateEdit(grid));
-            cms.Items.Add("Delete", null, (_, _) => DeleteCurrentRow(grid));
+            cms.Items.Add("Edit", null, (_, _) => RowActionHelper.Edit(grid, _entryFormFactory));
+            cms.Items.Add("Delete", null, (_, _) => RowActionHelper.Delete(grid, _pathService));
             cms.Items.Add(new ToolStripSeparator());
         }
 
@@ -77,37 +84,19 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
     }
 
     /// <summary>
-    /// Deletes the currently selected row from the grid.
+    /// Creates the context menu for a click on the grid's empty area.
+    /// Read-only scopes get no menu at all.
     /// </summary>
-    /// <param name="g">The DataGridView containing the row to delete.</param>
-    private void DeleteCurrentRow(DataGridView g)
+    /// <param name="grid">The DataGridView the click landed on.</param>
+    /// <returns>A menu with Create, or null when the scope is read-only.</returns>
+    public ContextMenuStrip? CreateForEmptyArea(DataGridView grid)
     {
-        if (!AdminChecker.ValidateTab(g)) return;
-        var model = ControlHelper.GetCurrentModel(g);
-        if (model is not null)
-            _pathService.RemoveEntry(model, ControlHelper.GetTabType(g));
-    }
+        if (!AdminChecker.CanMutate(grid))
+            return null;
 
-    /// <summary>
-    /// Opens a form to create a new environmental variable.
-    /// </summary>
-    /// <param name="g">The DataGridView to add the new variable to.</param>
-    private void AppendToPath(DataGridView g)
-    {
-        if (!AdminChecker.ValidateTab(g)) return;
-        _entryFormFactory.Create(ControlHelper.GetTabType(g)).ShowDialog();
-    }
-
-    /// <summary>
-    /// Opens a form to edit the currently selected environmental variable.
-    /// </summary>
-    /// <param name="g">The DataGridView containing the variable to edit.</param>
-    private void CreateEdit(DataGridView g)
-    {
-        if (!AdminChecker.ValidateTab(g)) return;
-        var model = ControlHelper.GetCurrentModel(g);
-        if (model is not null)
-            _entryFormFactory.Create(model, ControlHelper.GetTabType(g)).ShowDialog();
+        var cms = new ContextMenuStrip();
+        cms.Items.Add("Create", null, (_, _) => RowActionHelper.Create(grid, _entryFormFactory));
+        return cms;
     }
 
     /// <summary>

@@ -37,7 +37,13 @@
             menuStrip1 = new MenuStrip();
             optionsToolStripMenuItem = new ToolStripMenuItem();
             AllTab = new TabControl();
+            toolStrip1 = new ToolStrip();
+            addToolStripButton = new ToolStripButton();
+            editToolStripButton = new ToolStripButton();
+            deleteToolStripButton = new ToolStripButton();
+            applyToolStripButton = new ToolStripButton();
             menuStrip1.SuspendLayout();
+            toolStrip1.SuspendLayout();
             SuspendLayout();
             // 
             // saveToolStripMenuItem
@@ -81,6 +87,36 @@
             optionsToolStripMenuItem.Name = "optionsToolStripMenuItem";
             resources.ApplyResources(optionsToolStripMenuItem, "optionsToolStripMenuItem");
             // 
+            // toolStrip1
+            // 
+            toolStrip1.Items.AddRange(new ToolStripItem[] { addToolStripButton, editToolStripButton, deleteToolStripButton, applyToolStripButton });
+            toolStrip1.Name = "toolStrip1";
+            resources.ApplyResources(toolStrip1, "toolStrip1");
+            // 
+            // addToolStripButton
+            // 
+            addToolStripButton.Name = "addToolStripButton";
+            resources.ApplyResources(addToolStripButton, "addToolStripButton");
+            addToolStripButton.Click += CreateEntryClicked;
+            // 
+            // editToolStripButton
+            // 
+            editToolStripButton.Name = "editToolStripButton";
+            resources.ApplyResources(editToolStripButton, "editToolStripButton");
+            editToolStripButton.Click += EditEntryClicked;
+            // 
+            // deleteToolStripButton
+            // 
+            deleteToolStripButton.Name = "deleteToolStripButton";
+            resources.ApplyResources(deleteToolStripButton, "deleteToolStripButton");
+            deleteToolStripButton.Click += DeleteEntryClicked;
+            // 
+            // applyToolStripButton
+            // 
+            applyToolStripButton.Name = "applyToolStripButton";
+            resources.ApplyResources(applyToolStripButton, "applyToolStripButton");
+            applyToolStripButton.Click += Apply;
+            // 
             // AllTab
             // 
             resources.ApplyResources(AllTab, "AllTab");
@@ -92,11 +128,14 @@
             resources.ApplyResources(this, "$this");
             AutoScaleMode = AutoScaleMode.Font;
             Controls.Add(AllTab);
+            Controls.Add(toolStrip1);
             Controls.Add(menuStrip1);
             MainMenuStrip = menuStrip1;
             Name = "MainForm";
             menuStrip1.ResumeLayout(false);
             menuStrip1.PerformLayout();
+            toolStrip1.ResumeLayout(false);
+            toolStrip1.PerformLayout();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -109,6 +148,11 @@
         private ToolStripMenuItem checkForUpdatesToolStripMenuItem;
         private ToolStripMenuItem aboutToolStripMenuItem;
         private MenuStrip menuStrip1;
+        private ToolStrip toolStrip1;
+        private ToolStripButton addToolStripButton;
+        private ToolStripButton editToolStripButton;
+        private ToolStripButton deleteToolStripButton;
+        private ToolStripButton applyToolStripButton;
         private TabControl AllTab;
         private ToolStripMenuItem optionsToolStripMenuItem;
     }

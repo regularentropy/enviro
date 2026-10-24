@@ -142,9 +142,10 @@ internal sealed class PathGridFactory : IPathGridFactory
                 // Getting the place of the cursor
                 var hit = grid.HitTest(e.X, e.Y);
 
-                // Not showing if user clicked on an empty space 
+                // Clicking the empty area offers Create, or nothing on a read-only scope.
                 if (hit.RowIndex < 0)
                 {
+                    cf.CreateForEmptyArea(grid)?.Show(grid, e.Location);
                     return;
                 }
 

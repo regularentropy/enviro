@@ -8,7 +8,8 @@ namespace enviro.Services;
 /// <param name="Tag">The version tag of the release, without a leading "v".</param>
 /// <param name="LastReleaseURL">The URL to the release page.</param>
 /// <param name="ReleaseNotes">The release notes/description.</param>
-internal record UpdateResponse(string Tag, string LastReleaseURL, string ReleaseNotes);
+/// <param name="CurrentVersion">The installed version, in `Major.Minor.Build` form.</param>
+internal record UpdateResponse(string Tag, string LastReleaseURL, string ReleaseNotes, string CurrentVersion);
 
 /// <summary>
 /// Service interface for checking for application updates.
@@ -88,7 +89,8 @@ internal sealed class UpdateService(MetadataRepository _mr, IAppLog _log) : IUpd
             return new UpdateResponse(
                 tag,
                 ReadString(doc.RootElement, "html_url"),
-                ReadString(doc.RootElement, "body"));
+                ReadString(doc.RootElement, "body"),
+                _mr.Version.ToString());
         }
     }
 

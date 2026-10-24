@@ -17,10 +17,10 @@ internal static class RowActionHelper
     /// <param name="forms">The factory that builds the entry dialog.</param>
     public static void Create(DataGridView grid, IActionFactory<EnvModel> forms)
     {
-        if (!AdminChecker.ValidateTab(grid))
+        if (ControlHelper.GetTabType(grid) is not { } scope || !AdminChecker.ValidateTab(grid))
             return;
 
-        forms.Create(ControlHelper.GetTabType(grid)).ShowDialog();
+        forms.Create(scope).ShowDialog();
     }
 
     /// <summary>
@@ -30,13 +30,13 @@ internal static class RowActionHelper
     /// <param name="forms">The factory that builds the entry dialog.</param>
     public static void Edit(DataGridView grid, IActionFactory<EnvModel> forms)
     {
-        if (!AdminChecker.ValidateTab(grid))
+        if (ControlHelper.GetTabType(grid) is not { } scope || !AdminChecker.ValidateTab(grid))
             return;
 
         var model = ControlHelper.GetCurrentModel(grid);
 
         if (model is not null)
-            forms.Create(model, ControlHelper.GetTabType(grid)).ShowDialog();
+            forms.Create(model, scope).ShowDialog();
     }
 
     /// <summary>
@@ -46,12 +46,12 @@ internal static class RowActionHelper
     /// <param name="envService">The store that owns the rows.</param>
     public static void Delete(DataGridView grid, IEnvService envService)
     {
-        if (!AdminChecker.ValidateTab(grid))
+        if (ControlHelper.GetTabType(grid) is not { } scope || !AdminChecker.ValidateTab(grid))
             return;
 
         var model = ControlHelper.GetCurrentModel(grid);
 
         if (model is not null)
-            envService.RemoveEntry(model, ControlHelper.GetTabType(grid));
+            envService.RemoveEntry(model, scope);
     }
 }

@@ -8,22 +8,28 @@ namespace enviro.Static;
 /// </summary>
 internal static class AdminChecker
 {
+    // Elevation cannot change while the process runs, so the check is evaluated once.
+    private static readonly Lazy<bool> IsElevated = new(() =>
+        new WindowsPrincipal(WindowsIdentity.GetCurrent())
+        .IsInRole(WindowsBuiltInRole.Administrator));
+
     /// <summary>
     /// Determines whether the current application is running with administrator privileges.
+    /// The result is cached for the lifetime of the process.
     /// </summary>
     /// <returns>True if running as administrator, false otherwise.</returns>
-    public static bool IsAdmin() =>
-        new WindowsPrincipal(WindowsIdentity.GetCurrent())
-        .IsInRole(WindowsBuiltInRole.Administrator);
+    public static bool IsAdmin() => IsElevated.Value;
 
     /// <summary>
     /// Determines whether the scope that owns the control accepts mutations in this session.
-    /// User scope is always mutable; Machine scope requires elevation.
+    /// User scope is always mutable; Machine scope requires elevation; a control with no scope
+    /// carrying ancestor denies mutations.
     /// </summary>
     /// <param name="c">The control to check (typically a DataGridView).</param>
     /// <returns>True if mutations are allowed for the control's scope.</returns>
     public static bool CanMutate(Control c) =>
-        ControlHelper.GetTabType(c) != EnvironmentalVariableType.Machine || IsAdmin();
+        ControlHelper.GetTabType(c) is { } scope
+        && (scope != EnvironmentalVariableType.Machine || IsAdmin());
 
     /// <summary>
     /// Validates that the user has administrator privileges when accessing the Machine tab.

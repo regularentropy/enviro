@@ -16,15 +16,19 @@ internal static class ControlHelper
         grid.CurrentRow?.DataBoundItem as EnvModel;
 
     /// <summary>
-    /// Determines the environmental variable type based on the parent TabPage's text.
+    /// Determines the environmental variable type carried by the nearest ancestor control's
+    /// <see cref="Control.Tag"/>; <c>TabFactory</c> tags each tab page with its scope.
     /// </summary>
-    /// <param name="control">The control whose parent tab will be checked.</param>
-    /// <returns>Machine if the parent tab is named "Machine", User otherwise.</returns>
-    public static EnvironmentalVariableType GetTabType(Control control) =>
-        control.Parent?.Text switch
+    /// <param name="control">The control whose ancestor chain will be walked, starting with the control itself.</param>
+    /// <returns>The scope of the nearest scope-carrying ancestor, or null when no ancestor carries one.</returns>
+    public static EnvironmentalVariableType? GetTabType(Control control)
+    {
+        for (var c = control; c is not null; c = c.Parent)
         {
-            "Machine" => EnvironmentalVariableType.Machine,
-            "User" => EnvironmentalVariableType.User,
-            _ => EnvironmentalVariableType.User
-        };
+            if (c.Tag is EnvironmentalVariableType scope)
+                return scope;
+        }
+
+        return null;
+    }
 }

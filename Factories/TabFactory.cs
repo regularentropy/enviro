@@ -33,10 +33,11 @@ internal sealed class TabFactory(IPathGridFactory gridFactory) : ITabFactory
     /// <param name="elevate">
     /// Optional action that starts an elevated instance; used by the read-only Machine banner.
     /// </param>
-    /// <returns>A TabPage with the tab name set to the variable type and containing a grid.</returns>
+    /// <returns>A TabPage tagged with the variable type and containing a grid.</returns>
     public TabPage Create(EnvironmentalVariableType currentTab, Action? elevate = null)
     {
-        TabPage tab = new(currentTab.ToString());
+        // The tab carries its scope in Tag; the tab text is presentation only.
+        TabPage tab = new(currentTab.ToString()) { Tag = currentTab };
 
         DataGridView grid = gridFactory.Create(currentTab);
 

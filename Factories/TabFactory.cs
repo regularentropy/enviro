@@ -1,4 +1,5 @@
 ﻿using enviro.Models;
+using enviro.Static;
 
 namespace enviro.Factories;
 
@@ -11,8 +12,12 @@ public interface ITabFactory
     /// Creates a TabPage for the specified environmental variable type.
     /// </summary>
     /// <param name="tab">The type of environmental variable (User or Machine).</param>
-    /// <returns>A configured TabPage containing a DataGridView.</returns>
-    TabPage Create(EnvironmentalVariableType tab);
+    /// <param name="elevate">
+    /// Optional action that starts an elevated instance. When the Machine scope is read-only and
+    /// this is supplied, the page shows a banner explaining the restriction.
+    /// </param>
+    /// <returns>A configured TabPage containing a filter box, an optional read-only banner and a DataGridView.</returns>
+    TabPage Create(EnvironmentalVariableType tab, Action? elevate = null);
 }
 
 /// <summary>
@@ -25,8 +30,11 @@ internal sealed class TabFactory(IPathGridFactory gridFactory) : ITabFactory
     /// Creates a TabPage with a DataGridView for displaying environmental variables.
     /// </summary>
     /// <param name="currentTab">The type of environmental variable (User or Machine).</param>
+    /// <param name="elevate">
+    /// Optional action that starts an elevated instance; used by the read-only Machine banner.
+    /// </param>
     /// <returns>A TabPage with the tab name set to the variable type and containing a grid.</returns>
-    public TabPage Create(EnvironmentalVariableType currentTab)
+    public TabPage Create(EnvironmentalVariableType currentTab, Action? elevate = null)
     {
         TabPage tab = new(currentTab.ToString());
 
@@ -39,12 +47,55 @@ internal sealed class TabFactory(IPathGridFactory gridFactory) : ITabFactory
             BorderStyle = BorderStyle.FixedSingle
         };
 
-        // Fill first, then the top-docked filter: WinForms docks controls in reverse add order.
+        // Fill first, then the top-docked controls: WinForms docks controls in reverse add order.
         tab.Controls.Add(grid);
         tab.Controls.Add(filter);
+
+        if (currentTab == EnvironmentalVariableType.Machine && !AdminChecker.IsAdmin() && elevate is not null)
+            tab.Controls.Add(CreateReadOnlyBanner(elevate));
 
         gridFactory.AttachFilter(grid, filter);
 
         return tab;
+    }
+
+    /// <summary>
+    /// Builds the slim banner that explains why the Machine scope is read-only and offers elevation.
+    /// </summary>
+    /// <param name="elevate">The action that starts an elevated instance.</param>
+    /// <returns>A top-docked panel containing the explanation and an <b>Elevate</b> button.</returns>
+    private static Panel CreateReadOnlyBanner(Action elevate)
+    {
+        var banner = new Panel
+        {
+            Dock = DockStyle.Top,
+            BackColor = SystemColors.Info,
+            Padding = new Padding(8, 4, 8, 4),
+        };
+
+        banner.Height = banner.Font.Height + 16;
+
+        var label = new Label
+        {
+            Dock = DockStyle.Fill,
+            Text = "Read-only — run as administrator to edit machine variables",
+            TextAlign = ContentAlignment.MiddleLeft,
+            BackColor = Color.Transparent,
+        };
+
+        var button = new Button
+        {
+            Dock = DockStyle.Right,
+            Text = "Elevate",
+            Width = 90,
+            UseVisualStyleBackColor = true,
+        };
+
+        button.Click += (_, _) => elevate();
+
+        banner.Controls.Add(label);
+        banner.Controls.Add(button);
+
+        return banner;
     }
 }

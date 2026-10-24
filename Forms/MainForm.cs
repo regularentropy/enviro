@@ -72,7 +72,7 @@ internal partial class MainForm : Form
 
         AllTab.Controls.AddRange([
             _tabFactory.Create(EnvironmentalVariableType.User),
-            _tabFactory.Create(EnvironmentalVariableType.Machine),
+            _tabFactory.Create(EnvironmentalVariableType.Machine, () => RestartAsAdmin(this, EventArgs.Empty)),
         ]);
 
         // Keep the toolbar's Add/Edit/Delete state in sync with the active tab and row.
@@ -129,10 +129,18 @@ internal partial class MainForm : Form
         try
         {
             Process.Start(proc);
-            _isRestarting = true;
-            Application.Exit();
         }
-        catch { }
+        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        {
+            // UAC was cancelled: nothing was started, so keep this instance running.
+            DialogHelper.ShowInfo(
+                "Elevation was cancelled. The Machine tab stays read-only.",
+                "Run as Administrator");
+            return;
+        }
+
+        _isRestarting = true;
+        Application.Exit();
     }
 
     /// <summary>

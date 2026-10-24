@@ -44,13 +44,13 @@ internal static class WindowGeometry
     }
 
     /// <summary>
-    /// Whether the passed bounds are plausible and still touch one of the given working areas.
+    /// Whether the passed bounds are plausible and fit entirely inside one of the given working areas.
     /// </summary>
     /// <param name="bounds">The rectangle to check.</param>
     /// <param name="workingAreas">The screens' working areas, e.g. <c>Screen.AllScreens.Select(s =&gt; s.WorkingArea)</c>.</param>
-    /// <returns>True when the bounds are big enough and overlap a screen.</returns>
+    /// <returns>True when the bounds are big enough and lie wholly inside one screen's working area.</returns>
     public static bool IsOnScreen(Rectangle bounds, IEnumerable<Rectangle> workingAreas) =>
         bounds.Width >= 200
         && bounds.Height >= 150
-        && workingAreas.Any(area => area.IntersectsWith(bounds));
+        && workingAreas.Any(area => area.Contains(bounds));
 }

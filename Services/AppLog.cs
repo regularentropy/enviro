@@ -51,16 +51,55 @@ internal sealed class AppLog : IAppLog
             lock (_gate)
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-
-                if (File.Exists(FilePath) && new FileInfo(FilePath).Length >= MaxBytes)
-                    File.Move(FilePath, FilePath + ".old", overwrite: true);
-
-                File.AppendAllText(FilePath, entry);
+                Rotate();
+                Append(entry);
             }
         }
         catch (Exception)
         {
             // Logging must never break the caller, least of all the crash path.
+        }
+    }
+
+    /// <summary>
+    /// Moves the live file to <c>enviro.log.old</c> once it reaches <see cref="MaxBytes"/>.
+    /// </summary>
+    /// <remarks>
+    /// A failed rotation is dropped on purpose: the entry is still written, so a locked or
+    /// read-only backup costs the older entries rather than this one and every later one.
+    /// </remarks>
+    private void Rotate()
+    {
+        try
+        {
+            if (File.Exists(FilePath) && new FileInfo(FilePath).Length >= MaxBytes)
+                File.Move(FilePath, FilePath + ".old", overwrite: true);
+        }
+        catch (Exception)
+        {
+            // The live file keeps growing past the threshold instead of the log stalling at it.
+        }
+    }
+
+    /// <summary>
+    /// Appends the entry, falling back to rewriting the file when the append itself fails.
+    /// </summary>
+    private void Append(string entry)
+    {
+        try
+        {
+            File.AppendAllText(FilePath, entry);
+        }
+        catch (Exception)
+        {
+            try
+            {
+                File.WriteAllText(FilePath, entry);
+            }
+            catch (Exception)
+            {
+                // Logging must never break the caller, least of all the crash path.
+            }
         }
     }
 }

@@ -98,12 +98,17 @@ internal sealed class EnvAdapter(IEnvService _es, IAppLog _log) : IEnvAdapter
             // Snapshot: a written deleted row leaves the list while this loop runs.
             foreach (var model in scope.Rows.OfType<EnvModel>().Where(m => m.State == state).ToList())
             {
+                var oldKeyRemoved = false;
+
                 try
                 {
                     // A renamed row was never written under its new name, so the key to remove is
                     // the original one. Windows keys are case-insensitive, hence the ordinal compare.
                     if (!string.Equals(model.OriginalName, model.Name, StringComparison.Ordinal))
+                    {
                         Environment.SetEnvironmentVariable(model.OriginalName, null, target);
+                        oldKeyRemoved = true;
+                    }
 
                     Environment.SetEnvironmentVariable(
                         model.Name,
@@ -112,6 +117,10 @@ internal sealed class EnvAdapter(IEnvService _es, IAppLog _log) : IEnvAdapter
                 }
                 catch (Exception ex)
                 {
+                    // The new name was never written, so the deleted old key held the only copy.
+                    if (oldKeyRemoved)
+                        RestoreOldKey(model, target);
+
                     _log.Error($"Could not write {scope.Type} variable \"{model.Name}\".", ex);
                     return (applied, model, ex.Message);
                 }
@@ -122,5 +131,27 @@ internal sealed class EnvAdapter(IEnvService _es, IAppLog _log) : IEnvAdapter
         }
 
         return (applied, null, null);
+    }
+
+    /// <summary>
+    /// Writes a renamed row's original key back with its original value, after the write under the
+    /// new name failed and the old key had already been removed.
+    /// </summary>
+    /// <remarks>
+    /// Best effort: the run is already failing and the row stays dirty, so a failed restore is only
+    /// logged and never replaces the original failure.
+    /// </remarks>
+    /// <param name="model">The renamed row whose old key is gone.</param>
+    /// <param name="target">The hive the row belongs to.</param>
+    private void RestoreOldKey(EnvModel model, EnvironmentVariableTarget target)
+    {
+        try
+        {
+            Environment.SetEnvironmentVariable(model.OriginalName, model.OriginalPath, target);
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"Could not restore the original value of variable \"{model.OriginalName}\".", ex);
+        }
     }
 }

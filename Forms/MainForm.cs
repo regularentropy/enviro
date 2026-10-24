@@ -72,6 +72,9 @@ internal partial class MainForm : Form
         statusStrip1.ShowItemToolTips = true;
         pendingStatusLabel.ToolTipText = "Row markers: + added · ~ modified · – deleted · ! corrupted value";
 
+        // Elevation cannot change while the process runs, so the label is written once here.
+        elevationStatusLabel.Text = AdminChecker.IsAdmin() ? "Administrator" : "Standard user";
+
         AllTab.Controls.AddRange([
             _tabFactory.Create(EnvironmentalVariableType.User),
             _tabFactory.Create(EnvironmentalVariableType.Machine, () => RestartAsAdmin(this, EventArgs.Empty)),
@@ -209,7 +212,8 @@ internal partial class MainForm : Form
     }
 
     /// <summary>
-    /// Applies the bounds passed by an elevation restart; every other launch centres the window.
+    /// Applies the bounds passed by an elevation restart when they still fit one screen;
+    /// every other launch centres the window.
     /// </summary>
     /// <remarks>
     /// The values live only in this process's command line, so they cannot survive a reboot or
@@ -394,10 +398,9 @@ internal partial class MainForm : Form
     private void UpdateStatusStrip()
     {
         var status = StatusPresenter.Describe(
-            _envService, _configService.Config.EnableCorruptedValidation, AdminChecker.IsAdmin());
+            _envService, _configService.Config.EnableCorruptedValidation);
 
         pendingStatusLabel.Text = status.Pending;
-        elevationStatusLabel.Text = status.Elevation;
 
         if (status.ShowCorrupted)
         {

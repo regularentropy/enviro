@@ -305,7 +305,11 @@ internal sealed class EnvScope(EnvironmentalVariableType type) : IEnvScope
         if (model.State == EnvironmentalVariableState.Deleted)
             return (null, "Restore the variable before editing it.");
 
-        // Rename rejects a blank name, an unknown row and a collision with another variable.
+        // A blank name has its own reason, so a caller can tell it apart from a collision.
+        if (string.IsNullOrWhiteSpace(newName))
+            return (null, "The name cannot be empty.");
+
+        // Rename rejects an unknown row and a collision with another variable.
         var target = Rename(model.Name, newName);
 
         if (target is null)

@@ -280,6 +280,8 @@ internal sealed class EnvService : IEnvService
 
     /// <summary>
     /// Finds an environmental variable by name in the specified collection.
+    /// A live (non-deleted) row wins over a row that is pending deletion, so a
+    /// delete+add rename pair cannot shadow the row that now holds the name.
     /// </summary>
     /// <param name="name">The name to search for.</param>
     /// <param name="t">The type of environmental variable (User or Machine).</param>
@@ -287,7 +289,10 @@ internal sealed class EnvService : IEnvService
     public EnvModel? GetModelByName(string name, EnvironmentalVariableType t)
     {
         var array = GetVariablesByType(t);
-        return array.FirstOrDefault(s => string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase));
+        return array.FirstOrDefault(s =>
+                   s.State != EnvironmentalVariableState.Deleted
+                   && string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase))
+               ?? array.FirstOrDefault(s => string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

@@ -60,6 +60,12 @@ namespace enviro
 
             services.AddSingleton<IActionFactory<EnvModel>, EntryFormFactory>();
 
+            // The shell orchestrates an apply through this; it owns no UI.
+            services.AddSingleton<ApplyCoordinator>();
+
+            // A factory delegate instead of the container: MainForm resolves nothing itself.
+            services.AddSingleton<Func<AboutForm>>(sp => () => sp.GetRequiredService<AboutForm>());
+
             services.AddTransient<MainForm>();
             services.AddTransient<AboutForm>();
 

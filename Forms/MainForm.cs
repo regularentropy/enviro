@@ -3,7 +3,6 @@ using enviro.Forms;
 using enviro.Models;
 using enviro.Services;
 using enviro.Static;
-using Microsoft.Extensions.DependencyInjection;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Net;
@@ -17,20 +16,19 @@ internal partial class MainForm : Form
     private readonly ITabFactory _tabFactory;
     private readonly IPathGridFactory _gridFactory;
     private readonly IEnvService _envService;
-    private readonly IPathAdapter _pathAdapter;
     private readonly IActionFactory<EnvModel> _entryFormFactory;
     private readonly IUpdateService _updateService;
     private readonly IConfigService _configService;
     private readonly ICorruptedPathService _corruption;
     private readonly IAppLog _log;
-    private readonly IServiceProvider _serviceProvider;
+    private readonly ApplyCoordinator _applyCoordinator;
+
+    // Builds the About dialog on demand, so the shell holds no container.
+    private readonly Func<AboutForm> _aboutFormFactory;
 
     // Set when the process is deliberately torn down (elevation restart, discard, or
     // apply-then-close) so the close guard does not ask a second time.
     private bool _isRestarting;
-
-    // Command-line argument the elevated restart uses to pass the current window bounds.
-    private const string WindowBoundsArgument = "--window-bounds";
 
     // Clears the transient message (applied changes, failed settings save) from the status strip.
     private readonly System.Windows.Forms.Timer _applyStatusTimer;
@@ -41,7 +39,7 @@ internal partial class MainForm : Form
     // Each command's projected controls, refreshed together so their enablement cannot drift.
     private readonly List<(MainCommand Command, ToolStripItem[] Targets)> _commandTargets = [];
 
-    public MainForm(IEnvService es, IPathAdapter pa, IActionFactory<EnvModel> af, IUpdateService us, ITabFactory tf, IPathGridFactory gf, IServiceProvider sp, IConfigService cs, IAppLog log, MetadataRepository mr, ICorruptedPathService corruption)
+    public MainForm(IEnvService es, IActionFactory<EnvModel> af, IUpdateService us, ITabFactory tf, IPathGridFactory gf, Func<AboutForm> aboutForm, IConfigService cs, IAppLog log, MetadataRepository mr, ICorruptedPathService corruption, ApplyCoordinator applyCoordinator)
     {
         InitializeComponent();
 
@@ -49,12 +47,12 @@ internal partial class MainForm : Form
         _gridFactory = gf;
         _updateService = us;
         _envService = es;
-        _pathAdapter = pa;
         _entryFormFactory = af;
-        _serviceProvider = sp;
+        _aboutFormFactory = aboutForm;
         _configService = cs;
         _corruption = corruption;
         _log = log;
+        _applyCoordinator = applyCoordinator;
 
         ApplyElevationWindowGeometry();
 
@@ -69,10 +67,6 @@ internal partial class MainForm : Form
         _configService.SaveFailed += OnConfigSaveFailed;
 
         this.Name = Assembly.GetExecutingAssembly().GetName().Name;
-
-        var isAdmin = AdminChecker.IsAdmin();
-
-        elevationStatusLabel.Text = isAdmin ? "Administrator" : "Standard user";
 
         // Legend for the grid's state-indicator column, available without using colour vision.
         statusStrip1.ShowItemToolTips = true;
@@ -128,7 +122,7 @@ internal partial class MainForm : Form
 
     private void AboutButtonClicked(object sender, EventArgs e)
     {
-        var form = _serviceProvider.GetRequiredService<AboutForm>();
+        var form = _aboutFormFactory();
         form.ShowDialog();
     }
 
@@ -150,7 +144,7 @@ internal partial class MainForm : Form
             WorkingDirectory = Environment.CurrentDirectory,
             FileName = Application.ExecutablePath,
             Verb = "runas",
-            Arguments = $"{WindowBoundsArgument} {bounds.X},{bounds.Y},{bounds.Width},{bounds.Height},{(maximized ? 1 : 0)}"
+            Arguments = $"{WindowGeometry.Argument} {bounds.X},{bounds.Y},{bounds.Width},{bounds.Height},{(maximized ? 1 : 0)}"
         };
         try
         {
@@ -185,9 +179,7 @@ internal partial class MainForm : Form
 
         e.Cancel = true;
 
-        var pending = CountTotalPendingChanges();
-
-        switch (DialogHelper.ShowUnsavedChanges(pending))
+        switch (DialogHelper.ShowUnsavedChanges(_applyCoordinator.PendingChanges()))
         {
             case DialogResult.No:
                 _isRestarting = true;
@@ -203,12 +195,12 @@ internal partial class MainForm : Form
 
         // ApplyAsync completes synchronously today, so this runs to the end before the
         // close is re-issued.
-        var result = await _pathAdapter.ApplyAsync();
+        var outcome = await _applyCoordinator.ApplyAsync();
 
         // A failed run leaves rows unwritten, so the window stays open.
-        if (!result.Succeeded)
+        if (!outcome.Succeeded)
         {
-            ShowApplyFailure(result);
+            DialogHelper.ShowError(outcome.Message, "Apply");
             return;
         }
 
@@ -225,7 +217,8 @@ internal partial class MainForm : Form
     /// </remarks>
     private void ApplyElevationWindowGeometry()
     {
-        if (!TryGetElevationBounds(out var bounds, out var maximized) || !IsOnConnectedScreen(bounds))
+        if (!WindowGeometry.TryParse(Environment.GetCommandLineArgs(), out var bounds, out var maximized)
+            || !WindowGeometry.IsOnScreen(bounds, Screen.AllScreens.Select(screen => screen.WorkingArea)))
         {
             CenterToScreen();
             return;
@@ -239,53 +232,13 @@ internal partial class MainForm : Form
     }
 
     /// <summary>
-    /// Reads the optional <c>--window-bounds x,y,width,height,maximized</c> argument.
-    /// </summary>
-    private static bool TryGetElevationBounds(out Rectangle bounds, out bool maximized)
-    {
-        bounds = Rectangle.Empty;
-        maximized = false;
-
-        var args = Environment.GetCommandLineArgs();
-
-        for (var i = 0; i < args.Length - 1; i++)
-        {
-            if (!string.Equals(args[i], WindowBoundsArgument, StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            var parts = args[i + 1].Split(',');
-
-            if (parts.Length != 5
-                || !int.TryParse(parts[0], out var x)
-                || !int.TryParse(parts[1], out var y)
-                || !int.TryParse(parts[2], out var width)
-                || !int.TryParse(parts[3], out var height))
-                return false;
-
-            bounds = new Rectangle(x, y, width, height);
-            maximized = parts[4] == "1";
-            return true;
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// Whether the passed bounds are plausible and still touch a connected screen.
-    /// </summary>
-    private static bool IsOnConnectedScreen(Rectangle bounds) =>
-        bounds.Width >= 200
-        && bounds.Height >= 150
-        && Screen.AllScreens.Any(screen => screen.WorkingArea.IntersectsWith(bounds));
-
-    /// <summary>
     /// Re-reads both scopes from the system, discarding pending edits only after confirmation.
     /// </summary>
     private void RefreshEntryClicked(object? sender, EventArgs e)
     {
         if (_envService.HasChanges())
         {
-            var pending = CountTotalPendingChanges();
+            var pending = _applyCoordinator.PendingChanges();
 
             var result = DialogHelper.ShowConfirm(
                 $"{pending} {(pending == 1 ? "change has" : "changes have")} not been applied.\n\n" +
@@ -436,23 +389,19 @@ internal partial class MainForm : Form
     }
 
     /// <summary>
-    /// Summarises pending work, corrupted rows and the elevation state in the status strip.
+    /// Writes the summarised workspace state onto the status-strip labels.
     /// </summary>
     private void UpdateStatusStrip()
     {
-        var added = CountByState(EnvironmentalVariableState.Added);
-        var modified = CountByState(EnvironmentalVariableState.Modified);
-        var deleted = CountByState(EnvironmentalVariableState.Deleted);
-        var total = added + modified + deleted;
+        var status = StatusPresenter.Describe(
+            _envService, _configService.Config.EnableCorruptedValidation, AdminChecker.IsAdmin());
 
-        pendingStatusLabel.Text = total == 0
-            ? "No pending changes"
-            : $"{added} added · {modified} modified · {deleted} deleted";
+        pendingStatusLabel.Text = status.Pending;
+        elevationStatusLabel.Text = status.Elevation;
 
-        if (_configService.Config.EnableCorruptedValidation)
+        if (status.ShowCorrupted)
         {
-            var corrupted = StateCounter.CountCorrupted(_envService.User) + StateCounter.CountCorrupted(_envService.Machine);
-            corruptedStatusLabel.Text = $"{corrupted} corrupted";
+            corruptedStatusLabel.Text = status.Corrupted;
             corruptedStatusLabel.Visible = true;
         }
         else
@@ -460,14 +409,6 @@ internal partial class MainForm : Form
             corruptedStatusLabel.Visible = false;
         }
     }
-
-    /// <summary>
-    /// Counts the rows in one edit state across both scopes.
-    /// </summary>
-    /// <param name="state">The state to count.</param>
-    /// <returns>The number of matching rows in the user and machine scopes.</returns>
-    private int CountByState(EnvironmentalVariableState state) =>
-        StateCounter.CountByState(_envService.User, state) + StateCounter.CountByState(_envService.Machine, state);
 
     private void CreateEntryClicked(object? sender, EventArgs e)
     {
@@ -503,27 +444,18 @@ internal partial class MainForm : Form
         if (!_envService.HasChanges())
             return;
 
-        var applied = CountTotalPendingChanges();
+        var outcome = await _applyCoordinator.ApplyAsync();
 
-        var result = await _pathAdapter.ApplyAsync();
-
-        if (!result.Succeeded)
+        if (!outcome.Succeeded)
         {
-            ShowApplyFailure(result);
+            DialogHelper.ShowError(outcome.Message, "Apply");
             return;
         }
 
         // A successful apply resets the workspace; start from the full list again.
         _gridFactory.ClearFilters();
-        ShowApplied(applied);
+        ShowTransientStatus(outcome.Message);
     }
-
-    /// <summary>
-    /// Reports a successful apply in the status strip for a few seconds instead of a modal dialog.
-    /// </summary>
-    /// <param name="count">The number of changes that were applied.</param>
-    private void ShowApplied(int count) =>
-        ShowTransientStatus($"Applied {count} {(count == 1 ? "change" : "changes")}");
 
     private void OnConfigSaveFailed(object? sender, string message) => ShowTransientStatus(message);
 
@@ -552,64 +484,4 @@ internal partial class MainForm : Form
         _applyStatusTimer.Stop();
         base.OnFormClosed(e);
     }
-
-    /// <summary>
-    /// Reports a failed apply: the row that stopped the run, why, and the work still left behind.
-    /// </summary>
-    /// <param name="result">The outcome of the failed run.</param>
-    private void ShowApplyFailure(ApplyResult result) =>
-        DialogHelper.ShowError(
-            "Failed to apply changes.\n" +
-            $"{result.FailedScope} variable \"{result.FailedModel?.Name}\" could not be written: {result.Error}\n" +
-            $"{DescribeWritten(result)}\n" +
-            $"{DescribePendingChanges()}",
-            "Apply"
-        );
-
-    /// <summary>
-    /// Says how many rows the failed run had already written.
-    /// </summary>
-    /// <param name="result">The outcome of the failed run.</param>
-    /// <returns>A sentence such as "3 changes were written before the failure."</returns>
-    private static string DescribeWritten(ApplyResult result)
-    {
-        var written = result.UserApplied + result.MachineApplied;
-        return written == 0
-            ? "No changes were written."
-            : $"{written} {(written == 1 ? "change was" : "changes were")} written before the failure.";
-    }
-
-    /// <summary>
-    /// Counts the rows pending across both scopes.
-    /// </summary>
-    private int CountTotalPendingChanges() =>
-        CountPending(_envService.User) + CountPending(_envService.Machine);
-
-    /// <summary>
-    /// Summarises the rows still pending after a failed apply, with a count per scope.
-    /// </summary>
-    /// <returns>A sentence such as "4 changes are still pending (3 User, 1 Machine)."</returns>
-    private string DescribePendingChanges()
-    {
-        var userCount = CountPending(_envService.User);
-        var machineCount = CountPending(_envService.Machine);
-        var total = userCount + machineCount;
-
-        if (total == 0)
-            return "No changes appear to be pending.";
-
-        var scopes = new List<string>(2);
-
-        if (userCount > 0)
-            scopes.Add($"{userCount} User");
-
-        if (machineCount > 0)
-            scopes.Add($"{machineCount} Machine");
-
-        var noun = total == 1 ? "change is" : "changes are";
-        return $"{total} {noun} still pending ({string.Join(", ", scopes)}).";
-    }
-
-    private static int CountPending(IEnvScope scope) =>
-        scope.Rows.OfType<EnvModel>().Count(v => v.State != EnvironmentalVariableState.Unchanged);
 }

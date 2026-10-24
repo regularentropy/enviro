@@ -16,7 +16,7 @@ internal static class ValidationHelper
     {
         if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(path))
         {
-            DialogHelper.ShowWarning("Name and path cannot be empty or consist only of spaces.", "Validation");
+            DialogHelper.ShowWarning("Name and value cannot be empty or consist only of spaces.", "Validation");
             return false;
         }
 
@@ -28,7 +28,7 @@ internal static class ValidationHelper
 
         if (ContainsInvalidValueCharacters(path))
         {
-            DialogHelper.ShowWarning("Path cannot contain a null character.", "Validation");
+            DialogHelper.ShowWarning("Value cannot contain a null character.", "Validation");
             return false;
         }
 

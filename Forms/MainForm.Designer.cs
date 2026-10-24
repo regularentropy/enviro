@@ -44,6 +44,7 @@
             applyToolStripButton = new ToolStripButton();
             statusStrip1 = new StatusStrip();
             pendingStatusLabel = new ToolStripStatusLabel();
+            applyStatusLabel = new ToolStripStatusLabel();
             corruptedStatusLabel = new ToolStripStatusLabel();
             elevationStatusLabel = new ToolStripStatusLabel();
             menuStrip1.SuspendLayout();
@@ -124,15 +125,21 @@
             // 
             // statusStrip1
             // 
-            statusStrip1.Items.AddRange(new ToolStripItem[] { pendingStatusLabel, corruptedStatusLabel, elevationStatusLabel });
+            statusStrip1.Items.AddRange(new ToolStripItem[] { pendingStatusLabel, applyStatusLabel, corruptedStatusLabel, elevationStatusLabel });
             statusStrip1.Name = "statusStrip1";
             resources.ApplyResources(statusStrip1, "statusStrip1");
             // 
             // pendingStatusLabel
-            // 
+            //
             pendingStatusLabel.AutoSize = true;
             pendingStatusLabel.Name = "pendingStatusLabel";
             resources.ApplyResources(pendingStatusLabel, "pendingStatusLabel");
+            //
+            // applyStatusLabel
+            //
+            applyStatusLabel.AutoSize = true;
+            applyStatusLabel.Name = "applyStatusLabel";
+            resources.ApplyResources(applyStatusLabel, "applyStatusLabel");
             // 
             // corruptedStatusLabel
             // 
@@ -188,6 +195,7 @@
         private ToolStripButton applyToolStripButton;
         private StatusStrip statusStrip1;
         private ToolStripStatusLabel pendingStatusLabel;
+        private ToolStripStatusLabel applyStatusLabel;
         private ToolStripStatusLabel corruptedStatusLabel;
         private ToolStripStatusLabel elevationStatusLabel;
         private TabControl AllTab;

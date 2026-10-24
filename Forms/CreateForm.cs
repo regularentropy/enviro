@@ -33,27 +33,23 @@ internal partial class CreateForm : AbstractEntryForm
         if (!_envService.Contains(pathModel, _t))
         {
             _envService.AddEntry(pathModel, _t);
-
-            DialogHelper.ShowInfo("Variable successfully added", "Action");
             this.Close();
 
             return;
         }
 
-        var res = DialogHelper.ShowConfirm("The variable already exists. Override?");
+        var existing = _envService.GetModelByName(name, _t);
+        if (existing is null)
+            return;
+
+        var res = DialogHelper.ShowConfirm($"'{existing.Name}' already exists with value:\n{existing.Path}\n\nOverride?");
 
         if (res == DialogResult.OK)
         {
-            var existing = _envService.GetModelByName(name, _t);
-            if (existing != null)
-            {
-                if (existing.State == EnvironmentalVariableState.Deleted)
-                    _envService.RestoreItem(existing);
+            if (existing.State == EnvironmentalVariableState.Deleted)
+                _envService.RestoreItem(existing);
 
-                _envService.UpdatePath(existing, path, _t);
-                DialogHelper.ShowInfo("Variable successfully updated", "Action");
-            }
-
+            _envService.UpdatePath(existing, path, _t);
             this.Close();
         }
     }

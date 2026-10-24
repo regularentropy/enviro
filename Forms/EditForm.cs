@@ -21,8 +21,15 @@ internal partial class EditForm : AbstractEntryForm
         pathTextBox.Text = pm.Path;
 
         this.Text = "Edit";
-        addButton.Text = "Edit";
+        addButton.Text = "Save";
     }
+
+    /// <summary>
+    /// Save stays disabled until the trimmed name or value differs from the bound model.
+    /// </summary>
+    protected override bool HasPendingChange() =>
+        _pm_ref is not null
+        && (nameTextBox.Text.Trim() != _pm_ref.Name || pathTextBox.Text.Trim() != _pm_ref.Path);
 
     protected override void RunAction(object sender, EventArgs e)
     {
@@ -43,7 +50,7 @@ internal partial class EditForm : AbstractEntryForm
 
         if (!nameChanged && !pathChanged)
         {
-            DialogHelper.ShowError("No changes detected");
+            DialogHelper.ShowInfo("No changes detected", "Edit");
             return;
         }
 

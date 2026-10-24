@@ -36,7 +36,7 @@
             label2 = new Label();
             tableLayoutPanel4 = new TableLayoutPanel();
             pathTextBox = new TextBox();
-            loadDialogueButton = new Button();
+            browseButton = new Button();
             tableLayoutPanel5 = new TableLayoutPanel();
             cancelButton = new Button();
             addButton = new Button();
@@ -125,7 +125,7 @@
             label2.Name = "label2";
             label2.Size = new Size(31, 15);
             label2.TabIndex = 0;
-            label2.Text = "Path";
+            label2.Text = "Value";
             // 
             // tableLayoutPanel4
             // 
@@ -133,7 +133,7 @@
             tableLayoutPanel4.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             tableLayoutPanel4.ColumnStyles.Add(new ColumnStyle());
             tableLayoutPanel4.Controls.Add(pathTextBox, 0, 0);
-            tableLayoutPanel4.Controls.Add(loadDialogueButton, 1, 0);
+            tableLayoutPanel4.Controls.Add(browseButton, 1, 0);
             tableLayoutPanel4.Dock = DockStyle.Fill;
             tableLayoutPanel4.Location = new Point(3, 23);
             tableLayoutPanel4.Name = "tableLayoutPanel4";
@@ -150,15 +150,15 @@
             pathTextBox.Size = new Size(422, 23);
             pathTextBox.TabIndex = 2;
             // 
-            // loadDialogueButton
+            // browseButton
             // 
-            loadDialogueButton.Anchor = AnchorStyles.Left;
-            loadDialogueButton.Location = new Point(431, 23);
-            loadDialogueButton.Name = "loadDialogueButton";
-            loadDialogueButton.Size = new Size(25, 23);
-            loadDialogueButton.TabIndex = 1;
-            loadDialogueButton.Text = "...";
-            loadDialogueButton.UseVisualStyleBackColor = true;
+            browseButton.Anchor = AnchorStyles.Left;
+            browseButton.Location = new Point(381, 23);
+            browseButton.Name = "browseButton";
+            browseButton.Size = new Size(75, 23);
+            browseButton.TabIndex = 1;
+            browseButton.Text = "Browse…";
+            browseButton.UseVisualStyleBackColor = true;
             // 
             // tableLayoutPanel5
             // 
@@ -234,6 +234,6 @@
         protected Button cancelButton;
         protected TableLayoutPanel tableLayoutPanel4;
         protected TextBox pathTextBox;
-        protected Button loadDialogueButton;
+        protected Button browseButton;
     }
 }

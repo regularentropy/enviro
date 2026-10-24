@@ -27,6 +27,9 @@ internal partial class MainForm : Form
     // apply-then-close) so the close guard does not ask a second time.
     private bool _isRestarting;
 
+    // Clears the transient "Applied N changes" message from the status strip.
+    private readonly System.Windows.Forms.Timer _applyStatusTimer;
+
     public MainForm(IEnvService es, IPathAdapter pa, IActionFactory<EnvModel> af, IUpdateService us, ITabFactory tf, IPathGridFactory gf, IServiceProvider sp, IConfigService cs, MetadataRepository mr)
     {
         InitializeComponent();
@@ -41,6 +44,13 @@ internal partial class MainForm : Form
         _entryFormFactory = af;
         _serviceProvider = sp;
         _configService = cs;
+
+        _applyStatusTimer = new System.Windows.Forms.Timer { Interval = 5000 };
+        _applyStatusTimer.Tick += (_, _) =>
+        {
+            _applyStatusTimer.Stop();
+            applyStatusLabel.Text = string.Empty;
+        };
 
         this.Name = Assembly.GetExecutingAssembly().GetName().Name;
 
@@ -303,6 +313,8 @@ internal partial class MainForm : Form
         if (!_envService.HasChanges())
             return;
 
+        var applied = CountTotalPendingChanges();
+
         var result = await _pathAdapter.ApplyAsync();
 
         if (!result)
@@ -311,7 +323,27 @@ internal partial class MainForm : Form
             return;
         }
 
-        DialogHelper.ShowMessage("Successfully applied changes", "Apply");
+        ShowApplied(applied);
+    }
+
+    /// <summary>
+    /// Reports a successful apply in the status strip for a few seconds instead of a modal dialog.
+    /// </summary>
+    /// <param name="count">The number of changes that were applied.</param>
+    private void ShowApplied(int count)
+    {
+        applyStatusLabel.Text = $"Applied {count} {(count == 1 ? "change" : "changes")}";
+        _applyStatusTimer.Stop();
+        _applyStatusTimer.Start();
+    }
+
+    /// <summary>
+    /// Stops the transient-status timer when the window goes away.
+    /// </summary>
+    protected override void OnFormClosed(FormClosedEventArgs e)
+    {
+        _applyStatusTimer.Stop();
+        base.OnFormClosed(e);
     }
 
     /// <summary>

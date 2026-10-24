@@ -269,6 +269,9 @@
   <data name="pendingStatusLabel.Text" xml:space="preserve">
     <value>No pending changes</value>
   </data>
+  <data name="applyStatusLabel.Text" xml:space="preserve">
+    <value />
+  </data>
   <data name="corruptedStatusLabel.Text" xml:space="preserve">
     <value>0 corrupted</value>
   </data>
@@ -291,6 +294,12 @@
     <value>pendingStatusLabel</value>
   </data>
   <data name="&gt;&gt;pendingStatusLabel.Type" xml:space="preserve">
+    <value>System.Windows.Forms.ToolStripStatusLabel, System.Windows.Forms, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;applyStatusLabel.Name" xml:space="preserve">
+    <value>applyStatusLabel</value>
+  </data>
+  <data name="&gt;&gt;applyStatusLabel.Type" xml:space="preserve">
     <value>System.Windows.Forms.ToolStripStatusLabel, System.Windows.Forms, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
   <data name="&gt;&gt;corruptedStatusLabel.Name" xml:space="preserve">

@@ -8,7 +8,7 @@ namespace enviro.Factories;
 /// <summary>
 /// Factory interface for creating DataGridView instances for environmental variables.
 /// </summary>
-internal interface IPathGridFactory
+internal interface IEnvGridFactory
 {
     /// <summary>
     /// Creates a configured DataGridView for the specified environmental variable type.
@@ -34,7 +34,7 @@ internal interface IPathGridFactory
 /// <summary>
 /// Factory for creating and configuring DataGridView instances for displaying environmental variables.
 /// </summary>
-internal sealed class PathGridFactory : IPathGridFactory
+internal sealed class EnvGridFactory : IEnvGridFactory
 {
     private const string StateIndicatorColumnName = "StateIndicator";
 
@@ -47,13 +47,13 @@ internal sealed class PathGridFactory : IPathGridFactory
     private readonly Dictionary<DataGridView, TextBox> _filters = [];
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="PathGridFactory"/> class.
+    /// Initializes a new instance of the <see cref="EnvGridFactory"/> class.
     /// </summary>
     /// <param name="pathService">The service for managing environmental variables.</param>
     /// <param name="actionFactory">The factory for creating action forms.</param>
     /// <param name="contextMenuFactory">The factory for creating context menus.</param>
     /// <param name="corruption">The service that owns the corrupted-path overlay.</param>
-    public PathGridFactory(IEnvService pathService, IActionFactory<EnvModel> actionFactory, IContextMenuFactory contextMenuFactory, ICorruptedPathService corruption)
+    public EnvGridFactory(IEnvService pathService, IActionFactory<EnvModel> actionFactory, IContextMenuFactory contextMenuFactory, ICorruptedPathService corruption)
     {
         ps = pathService;
         cf = contextMenuFactory;

@@ -14,7 +14,7 @@ namespace enviro;
 internal partial class MainForm : Form
 {
     private readonly ITabFactory _tabFactory;
-    private readonly IPathGridFactory _gridFactory;
+    private readonly IEnvGridFactory _gridFactory;
     private readonly IEnvService _envService;
     private readonly IActionFactory<EnvModel> _entryFormFactory;
     private readonly IUpdateService _updateService;
@@ -39,7 +39,7 @@ internal partial class MainForm : Form
     // Each command's projected controls, refreshed together so their enablement cannot drift.
     private readonly List<(MainCommand Command, ToolStripItem[] Targets)> _commandTargets = [];
 
-    public MainForm(IEnvService es, IActionFactory<EnvModel> af, IUpdateService us, ITabFactory tf, IPathGridFactory gf, Func<AboutForm> aboutForm, IConfigService cs, IAppLog log, MetadataRepository mr, ICorruptedPathService corruption, ApplyCoordinator applyCoordinator)
+    public MainForm(IEnvService es, IActionFactory<EnvModel> af, IUpdateService us, ITabFactory tf, IEnvGridFactory gf, Func<AboutForm> aboutForm, IConfigService cs, IAppLog log, MetadataRepository mr, ICorruptedPathService corruption, ApplyCoordinator applyCoordinator)
     {
         InitializeComponent();
 

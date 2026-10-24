@@ -43,7 +43,7 @@ namespace enviro
             services.AddSingleton<IEnvService, EnvService>();
 
             services.AddSingleton<IContextMenuFactory, ContextMenuFactory>();
-            services.AddSingleton<IPathGridFactory, PathGridFactory>();
+            services.AddSingleton<IEnvGridFactory, EnvGridFactory>();
             services.AddSingleton<ITabFactory, TabFactory>();
 
             // The marshaller defaults to the UI synchronization context of the requesting thread.
@@ -53,7 +53,7 @@ namespace enviro
                 sp.GetRequiredService<IAppLog>()));
 
             services.AddSingleton<IUpdateService, UpdateService>();
-            services.AddSingleton<IPathAdapter, EnvAdapter>();
+            services.AddSingleton<IEnvAdapter, EnvAdapter>();
             services.AddSingleton<IConfigService, ConfigService>();
 
             services.AddSingleton<MetadataRepository>();

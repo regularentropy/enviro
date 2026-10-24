@@ -23,10 +23,5 @@ public enum EnvironmentalVariableState
     /// <summary>
     /// The variable has been marked for deletion.
     /// </summary>
-    Deleted,
-
-    /// <summary>
-    /// The variables is corrupted (path isn't found)
-    /// </summary>
-    Corrupted
+    Deleted
 }

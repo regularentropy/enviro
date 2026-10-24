@@ -5,7 +5,7 @@ using enviro.Static;
 /// <summary>
 /// Adapter interface for applying environmental variable changes to the system.
 /// </summary>
-internal interface IPathAdapter
+internal interface IEnvAdapter
 {
     /// <summary>
     /// Applies all pending environmental variable changes to the system.
@@ -42,7 +42,7 @@ internal sealed record ApplyResult(
 /// </summary>
 /// <param name="_es">The service managing environmental variables.</param>
 /// <param name="_log">Where a failed write is recorded.</param>
-internal sealed class EnvAdapter(IEnvService _es, IAppLog _log) : IPathAdapter
+internal sealed class EnvAdapter(IEnvService _es, IAppLog _log) : IEnvAdapter
 {
     /// <summary>
     /// Applies all pending changes to the system environment variables.

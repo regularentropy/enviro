@@ -15,7 +15,7 @@ internal sealed record ApplyOutcome(bool Succeeded, string Message);
 /// </summary>
 /// <param name="_es">The store whose pending rows are applied and counted.</param>
 /// <param name="_adapter">Where the tracked states are written to Windows.</param>
-internal sealed class ApplyCoordinator(IEnvService _es, IPathAdapter _adapter)
+internal sealed class ApplyCoordinator(IEnvService _es, IEnvAdapter _adapter)
 {
     /// <summary>
     /// The number of rows pending across both scopes.

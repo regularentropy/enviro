@@ -24,7 +24,7 @@ public interface ITabFactory
 /// Factory for creating TabPage controls with DataGridView for environmental variables.
 /// </summary>
 /// <param name="gridFactory">The factory for creating DataGridView instances.</param>
-internal sealed class TabFactory(IPathGridFactory gridFactory) : ITabFactory
+internal sealed class TabFactory(IEnvGridFactory gridFactory) : ITabFactory
 {
     /// <summary>
     /// Creates a TabPage with a DataGridView for displaying environmental variables.

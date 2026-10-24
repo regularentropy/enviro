@@ -68,7 +68,10 @@ internal enum UpsertOutcome
 /// </summary>
 /// <param name="Added">Entries that became new rows.</param>
 /// <param name="Overwritten">Entries that updated an existing row (a pending deletion was restored).</param>
-/// <param name="Unchanged">Entries whose row already held the identical value; those rows were untouched.</param>
+/// <param name="Unchanged">
+/// Entries that left their row at its baseline: the identical value (row untouched), or the
+/// baseline value after a pending edit or deletion was cancelled.
+/// </param>
 /// <param name="Skipped">Entries rejected by the input rules; nothing was created for them.</param>
 internal sealed record ImportOutcome(int Added, int Overwritten, int Unchanged, int Skipped);
 
@@ -118,8 +121,9 @@ internal interface IEnvScope
 
     /// <summary>
     /// Merges a set of entries into this scope: new names become rows, existing names take the
-    /// value (a pending deletion is restored), identical values are left untouched, and entries
-    /// the input rules reject are skipped. Raises one change notification for the whole batch.
+    /// value (a pending deletion is restored), and entries the input rules reject are skipped. An
+    /// entry that carries a row's baseline cancels that row's pending edit or deletion, and two
+    /// identical values leave the row untouched. Raises one change notification for the whole batch.
     /// </summary>
     /// <param name="entries">The name/value pairs to merge, in file order.</param>
     /// <returns>What the merge did, per entry.</returns>
@@ -335,13 +339,29 @@ internal sealed class EnvScope(EnvironmentalVariableType type) : IEnvScope
 
                 var existing = GetByName(name);
 
-                // The file already says what the row says: leave the row (and its state) alone.
-                if (existing is not null
-                    && existing.State != EnvironmentalVariableState.Deleted
-                    && string.Equals(existing.Path, value, StringComparison.Ordinal))
+                if (existing is not null)
                 {
-                    unchanged++;
-                    continue;
+                    // The entry carries the row's baseline — the name and value the registry holds.
+                    // Importing it cancels a pending edit or deletion, so the row returns to
+                    // Unchanged instead of staying dirty with a value that would change nothing.
+                    if (existing.State != EnvironmentalVariableState.Added
+                        && string.Equals(existing.OriginalName, name, StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(existing.OriginalPath, value, StringComparison.Ordinal))
+                    {
+                        if (existing.State != EnvironmentalVariableState.Unchanged)
+                            Reset(existing);
+
+                        unchanged++;
+                        continue;
+                    }
+
+                    // The file already says what the row says: leave the row (and its state) alone.
+                    if (existing.State != EnvironmentalVariableState.Deleted
+                        && string.Equals(existing.Path, value, StringComparison.Ordinal))
+                    {
+                        unchanged++;
+                        continue;
+                    }
                 }
 
                 // Import merges and overwrites; it never deletes, so an upsert cannot refuse.

@@ -196,7 +196,7 @@
             entriesButton.Location = new Point(0, 5);
             entriesButton.Margin = new Padding(0);
             entriesButton.Name = "entriesButton";
-            entriesButton.Size = new Size(110, 29);
+            entriesButton.Size = new Size(110, 23);
             entriesButton.TabIndex = 0;
             entriesButton.Text = "Edit entries";
             entriesButton.UseVisualStyleBackColor = true;
@@ -208,9 +208,9 @@
             addButton.AutoSize = true;
             addButton.Location = new Point(280, 0);
             addButton.Margin = new Padding(0, 0, 8, 0);
-            addButton.MinimumSize = new Size(90, 29);
+            addButton.MinimumSize = new Size(75, 23);
             addButton.Name = "addButton";
-            addButton.Size = new Size(90, 29);
+            addButton.Size = new Size(75, 23);
             addButton.TabIndex = 1;
             addButton.Text = "Add";
             addButton.UseVisualStyleBackColor = true;
@@ -222,9 +222,9 @@
             cancelButton.AutoSize = true;
             cancelButton.Location = new Point(378, 0);
             cancelButton.Margin = new Padding(0);
-            cancelButton.MinimumSize = new Size(90, 29);
+            cancelButton.MinimumSize = new Size(75, 23);
             cancelButton.Name = "cancelButton";
-            cancelButton.Size = new Size(90, 29);
+            cancelButton.Size = new Size(75, 23);
             cancelButton.TabIndex = 2;
             cancelButton.Text = "Cancel";
             cancelButton.UseVisualStyleBackColor = true;

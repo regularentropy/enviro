@@ -441,8 +441,8 @@ internal partial class MainForm : Form
     }
 
     /// <summary>
-    /// Writes both scopes' current values to a JSON file the user chooses: the file matches the
-    /// grid, and a row whose deletion is still pending is not backed up.
+    /// Writes the variables the user keeps to a JSON file they choose: the file matches the grid,
+    /// and a row whose deletion is still pending is not backed up.
     /// </summary>
     private void ExportVariables()
     {
@@ -456,18 +456,34 @@ internal partial class MainForm : Form
         if (dialog.ShowDialog() != CommonFileDialogResult.Ok)
             return;
 
-        if (_variableFiles.Save(dialog.FileName, _variableFiles.Snapshot(_envService)) is { } error)
+        var entries = _variableFiles.Entries(_variableFiles.Snapshot(_envService));
+
+        if (entries.Count == 0)
+        {
+            DialogHelper.ShowInfo("There are no variables to export.", "Export variables");
+            return;
+        }
+
+        var review = new VariableFileForm("Export variables", VariableFileDirection.Export, entries);
+
+        if (review.ShowDialog(this) != DialogResult.OK)
+            return;
+
+        if (_variableFiles.Save(dialog.FileName, BuildFile(review.SelectedEntries)) is { } error)
         {
             DialogHelper.ShowError(error, "Export variables");
             return;
         }
 
-        ShowTransientStatus($"Exported variables to {Path.GetFileName(dialog.FileName)}");
+        ShowTransientStatus(
+            $"Exported {review.SelectedEntries.Count} " +
+            $"{(review.SelectedEntries.Count == 1 ? "variable" : "variables")} to {Path.GetFileName(dialog.FileName)}");
     }
 
     /// <summary>
-    /// Merges a chosen file into the workspace: user entries always, machine entries only when this
-    /// session may write them. The file is reviewed in the grids like any other edit; Apply writes.
+    /// Merges the entry selection of a chosen file into the workspace: user entries always, machine
+    /// entries only when this session may write them. The rows are reviewed and applied like any
+    /// other edit; Apply writes the registry.
     /// </summary>
     private void ImportVariables()
     {
@@ -485,18 +501,86 @@ internal partial class MainForm : Form
             return;
         }
 
-        var machineEntries = file.MachineEntries();
-        var machineSkipped = machineEntries.Count > 0
-            && !AdminChecker.CanMutate(EnvironmentalVariableType.Machine);
+        // The same gate Apply uses: a machine section is only selectable in an elevated session.
+        var canImportMachine = AdminChecker.CanMutate(EnvironmentalVariableType.Machine);
+        var entries = _variableFiles.Compare(file, _envService, canImportMachine);
 
-        var user = _envService.User.Import(file.UserEntries());
-        var machine = machineSkipped
-            ? new ImportOutcome(0, 0, 0, machineEntries.Count)
-            : _envService.Machine.Import(machineEntries);
+        if (entries.Count == 0)
+        {
+            DialogHelper.ShowInfo("The file contains no variables.", "Import variables");
+            return;
+        }
 
-        // Both imports raised their one list refresh, so the grids, the status strip and the
+        var review = new VariableFileForm("Import variables", VariableFileDirection.Import, entries);
+
+        if (review.ShowDialog(this) != DialogResult.OK)
+            return;
+
+        if (review.SelectedEntries.Count == 0)
+        {
+            ShowTransientStatus("No variables were selected; nothing was imported.");
+            return;
+        }
+
+        var user = ImportSelected(EnvironmentalVariableType.User, review.SelectedEntries);
+        var machine = ImportSelected(EnvironmentalVariableType.Machine, review.SelectedEntries);
+
+        // The window disables a machine entry without elevation, so the file's section is still
+        // reported as skipped even though nothing was handed to the machine scope.
+        var machineSkipped = file.MachineEntries().Count > 0 && !canImportMachine;
+
+        // Each import raised its one list refresh, so the grids, the status strip and the
         // corruption overlay are already up to date.
         ShowTransientStatus(DescribeImport(user, machine, machineSkipped));
+    }
+
+    /// <summary>
+    /// Builds the document from the entries the review window kept, leaving a scope out entirely
+    /// when none of its entries were selected.
+    /// </summary>
+    /// <param name="entries">The checked entries.</param>
+    /// <returns>The document to write.</returns>
+    private static VariableFile BuildFile(IReadOnlyList<VariableFileEntry> entries) =>
+        new()
+        {
+            Version = VariableFile.CurrentVersion,
+            User = Section(entries, EnvironmentalVariableType.User),
+            Machine = Section(entries, EnvironmentalVariableType.Machine),
+        };
+
+    /// <summary>
+    /// Turns one scope's checked entries into a name-keyed section.
+    /// </summary>
+    /// <param name="entries">The checked entries.</param>
+    /// <param name="scope">The scope to collect.</param>
+    /// <returns>The section, or null when no entry of that scope was selected.</returns>
+    private static Dictionary<string, string>? Section(
+        IReadOnlyList<VariableFileEntry> entries, EnvironmentalVariableType scope)
+    {
+        var selected = entries.Where(entry => entry.Scope == scope).ToList();
+
+        return selected.Count == 0
+            ? null
+            : selected.ToDictionary(entry => entry.Name, entry => entry.Value);
+    }
+
+    /// <summary>
+    /// Merges one scope's selected entries; an empty selection does not touch the scope.
+    /// </summary>
+    /// <param name="scope">The scope to merge into.</param>
+    /// <param name="entries">The checked entries.</param>
+    /// <returns>What the merge did, or zero counts when no entry belonged to the scope.</returns>
+    private ImportOutcome ImportSelected(
+        EnvironmentalVariableType scope, IReadOnlyList<VariableFileEntry> entries)
+    {
+        var selected = entries
+            .Where(entry => entry.Scope == scope)
+            .Select(entry => new KeyValuePair<string, string>(entry.Name, entry.Value))
+            .ToList();
+
+        return selected.Count == 0
+            ? new ImportOutcome(0, 0, 0, 0)
+            : _envService.GetScope(scope).Import(selected);
     }
 
     /// <summary>

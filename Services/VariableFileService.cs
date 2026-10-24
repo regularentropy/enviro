@@ -1,5 +1,7 @@
 using enviro.Models;
+using enviro.Static;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace enviro.Services;
 
@@ -25,11 +27,13 @@ internal sealed record VariableFile
     /// <summary>
     /// The user variables, or null when the section is absent.
     /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, string>? User { get; init; }
 
     /// <summary>
     /// The machine variables, or null when the section is absent.
     /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, string>? Machine { get; init; }
 
     /// <summary>
@@ -49,6 +53,55 @@ internal sealed record VariableFile
 }
 
 /// <summary>
+/// What one file entry means for the review window; null when a list carries no comparison.
+/// </summary>
+internal enum VariableFileEntryStatus
+{
+    /// <summary>
+    /// The name is not in the scope: importing adds it.
+    /// </summary>
+    New,
+
+    /// <summary>
+    /// The name already has a row with a different value: importing replaces it.
+    /// </summary>
+    Overwrites,
+
+    /// <summary>
+    /// The row already holds the identical value: importing leaves it untouched.
+    /// </summary>
+    Unchanged,
+
+    /// <summary>
+    /// The input rules reject the entry: importing would skip it.
+    /// </summary>
+    Skipped,
+
+    /// <summary>
+    /// The entry belongs to the machine scope and this session may not write it.
+    /// </summary>
+    MachineSkipped,
+}
+
+/// <summary>
+/// One line of the import/export review window: the entry as the file holds it, the scope it
+/// belongs to, and — on an import — how the workspace compares with it.
+/// </summary>
+/// <param name="Scope">The scope the entry belongs to.</param>
+/// <param name="Name">The variable name.</param>
+/// <param name="Value">The value the file holds.</param>
+/// <param name="Status">The import comparison; null when the list reviews an export.</param>
+/// <param name="CurrentValue">
+/// The workspace value an overwrite would replace, or null when no collision is shown.
+/// </param>
+internal sealed record VariableFileEntry(
+    EnvironmentalVariableType Scope,
+    string Name,
+    string Value,
+    VariableFileEntryStatus? Status,
+    string? CurrentValue = null);
+
+/// <summary>
 /// Reads and writes the variable file used by export and import, including the in-memory snapshot
 /// an export writes. IO and format failures come back as a message instead of an exception.
 /// </summary>
@@ -61,6 +114,26 @@ internal interface IVariableFileService
     /// <param name="service">The store to snapshot.</param>
     /// <returns>The document to write.</returns>
     VariableFile Snapshot(IEnvService service);
+
+    /// <summary>
+    /// Lists the document's entries for the export review window, grouped by scope in name order.
+    /// </summary>
+    /// <param name="file">The document an export would write.</param>
+    /// <returns>One entry per variable, without a comparison.</returns>
+    IReadOnlyList<VariableFileEntry> Entries(VariableFile file);
+
+    /// <summary>
+    /// Compares the document with the workspace for the import review window: each entry's
+    /// status and the workspace value an overwrite would replace.
+    /// </summary>
+    /// <param name="file">The document read from disk.</param>
+    /// <param name="service">The store the import would merge into.</param>
+    /// <param name="canImportMachine">
+    /// Whether this session may write the machine scope; false marks every machine entry
+    /// <see cref="VariableFileEntryStatus.MachineSkipped"/>.
+    /// </param>
+    /// <returns>One entry per variable, grouped by scope in name order.</returns>
+    IReadOnlyList<VariableFileEntry> Compare(VariableFile file, IEnvService service, bool canImportMachine);
 
     /// <summary>
     /// Reads one variable file.
@@ -104,6 +177,21 @@ internal sealed class VariableFileService(IAppLog _log) : IVariableFileService
         };
 
     /// <inheritdoc />
+    public IReadOnlyList<VariableFileEntry> Entries(VariableFile file) =>
+    [
+        .. ExportEntries(EnvironmentalVariableType.User, file.User),
+        .. ExportEntries(EnvironmentalVariableType.Machine, file.Machine),
+    ];
+
+    /// <inheritdoc />
+    public IReadOnlyList<VariableFileEntry> Compare(
+        VariableFile file, IEnvService service, bool canImportMachine) =>
+    [
+        .. ImportEntries(EnvironmentalVariableType.User, file.User, service.User, canImportMachine: true),
+        .. ImportEntries(EnvironmentalVariableType.Machine, file.Machine, service.Machine, canImportMachine),
+    ];
+
+    /// <inheritdoc />
     public (VariableFile? File, string? Error) Read(string path)
     {
         VariableFile? file;
@@ -141,6 +229,75 @@ internal sealed class VariableFileService(IAppLog _log) : IVariableFileService
             _log.Error($"Could not write variables to {path}.", ex);
             return DescribeFailure(path, ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Lists one section's entries for an export review, without a comparison.
+    /// </summary>
+    /// <param name="scope">The section's scope.</param>
+    /// <param name="section">The section, or null when the file has none.</param>
+    /// <returns>The entries in name order.</returns>
+    private static IEnumerable<VariableFileEntry> ExportEntries(
+        EnvironmentalVariableType scope, Dictionary<string, string>? section) =>
+        section is null
+            ? []
+            : section
+                .OrderBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(entry => new VariableFileEntry(scope, entry.Key, entry.Value, Status: null));
+
+    /// <summary>
+    /// Compares one section's entries with its scope, applying the same rules the import merge uses.
+    /// </summary>
+    /// <param name="scope">The section's scope.</param>
+    /// <param name="section">The section, or null when the file has none.</param>
+    /// <param name="workspace">The scope the entries would merge into.</param>
+    /// <param name="canImportMachine">Whether this session may write the machine scope.</param>
+    /// <returns>The entries in name order, each with its comparison.</returns>
+    private static IEnumerable<VariableFileEntry> ImportEntries(
+        EnvironmentalVariableType scope,
+        Dictionary<string, string>? section,
+        IEnvScope workspace,
+        bool canImportMachine) =>
+        section is null
+            ? []
+            : section
+                .OrderBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(entry => CompareEntry(scope, entry, workspace, canImportMachine));
+
+    /// <summary>
+    /// Resolves one entry's import status. The elevation gate comes first, so a machine section in a
+    /// standard-user session reads as skipped as a whole — the same gate the import itself applies.
+    /// </summary>
+    /// <param name="scope">The entry's scope.</param>
+    /// <param name="entry">The name and value the file holds.</param>
+    /// <param name="workspace">The scope the entry would merge into.</param>
+    /// <param name="canImportMachine">Whether this session may write the machine scope.</param>
+    /// <returns>The entry with its status and, for an overwrite, the current workspace value.</returns>
+    private static VariableFileEntry CompareEntry(
+        EnvironmentalVariableType scope,
+        KeyValuePair<string, string> entry,
+        IEnvScope workspace,
+        bool canImportMachine)
+    {
+        var (name, value) = entry;
+
+        if (scope == EnvironmentalVariableType.Machine && !canImportMachine)
+            return new VariableFileEntry(scope, name, value, VariableFileEntryStatus.MachineSkipped);
+
+        if (!ValidationHelper.IsValidEnvironmentVariableInput(name, value))
+            return new VariableFileEntry(scope, name, value, VariableFileEntryStatus.Skipped);
+
+        var existing = workspace.GetByName(name);
+
+        if (existing is null)
+            return new VariableFileEntry(scope, name, value, VariableFileEntryStatus.New);
+
+        // A pending deletion is restored by the merge, so it is an overwrite like any other row.
+        if (existing.State != EnvironmentalVariableState.Deleted
+            && string.Equals(existing.Path, value, StringComparison.Ordinal))
+            return new VariableFileEntry(scope, name, value, VariableFileEntryStatus.Unchanged);
+
+        return new VariableFileEntry(scope, name, value, VariableFileEntryStatus.Overwrites, existing.Path);
     }
 
     /// <summary>

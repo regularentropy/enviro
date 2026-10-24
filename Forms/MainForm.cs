@@ -287,6 +287,8 @@ internal partial class MainForm : Form
 
     private async void checkForUpdatesToolStripMenuItem_Click(object sender, EventArgs e)
     {
+        // Disabled while the check is in flight, so a second one cannot start.
+        checkForUpdatesToolStripMenuItem.Enabled = false;
         try
         {
             var response = await _updateService.CheckForUpdatesAsync();
@@ -304,6 +306,15 @@ internal partial class MainForm : Form
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {
             DialogHelper.ShowInfo("The repository is unavailable.\nCheck the owners webpage.", "Updater");
+        }
+        catch (OperationCanceledException)
+        {
+            // HttpClient timeout: the host never answered.
+            DialogHelper.ShowInfo("Cannot access the internet", "Updater");
+        }
+        finally
+        {
+            checkForUpdatesToolStripMenuItem.Enabled = true;
         }
     }
 

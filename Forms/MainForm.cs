@@ -4,6 +4,7 @@ using enviro.Models;
 using enviro.Services;
 using enviro.Static;
 using Microsoft.Extensions.DependencyInjection;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
@@ -49,6 +50,10 @@ internal partial class MainForm : Form
             _tabFactory.Create(EnvironmentalVariableType.User),
             _tabFactory.Create(EnvironmentalVariableType.Machine),
         ]);
+
+        _envService.GetUserVariables().ListChanged += (_, _) => UpdateApplyState();
+        _envService.GetMachineVariables().ListChanged += (_, _) => UpdateApplyState();
+        UpdateApplyState();
 
         var corruptedVarsButton = new ToolStripMenuItem("Check for corrupted variables")
         {
@@ -135,20 +140,23 @@ internal partial class MainForm : Form
         }
     }
 
+    /// <summary>
+    /// Enables the Apply entry only while there is pending work.
+    /// </summary>
+    private void UpdateApplyState() => toolStripMenuItem1.Enabled = _envService.HasChanges();
+
     private async void Apply(object sender, EventArgs e)
     {
+        // Defensive no-op: the entry is disabled whenever there is nothing to apply.
         if (!_envService.HasChanges())
-        {
-            DialogHelper.ShowMessage("No changes detected", "Apply");
             return;
-        }
 
         var result = await _pathAdapter.ApplyAsync();
 
         if (!result)
         {
             DialogHelper.ShowError(
-                "Failed to apply changes.\nSome variables may not have been updated.",
+                $"Failed to apply changes.\n{DescribePendingChanges()}\nSome variables may already have been written.",
                 "Apply"
             );
             return;
@@ -156,4 +164,32 @@ internal partial class MainForm : Form
 
         DialogHelper.ShowMessage("Successfully applied changes", "Apply");
     }
+
+    /// <summary>
+    /// Summarises the rows still pending after a failed apply, with a count per scope.
+    /// </summary>
+    /// <returns>A sentence such as "4 changes are still pending (3 User, 1 Machine)."</returns>
+    private string DescribePendingChanges()
+    {
+        var userCount = CountPending(_envService.GetUserVariables());
+        var machineCount = CountPending(_envService.GetMachineVariables());
+        var total = userCount + machineCount;
+
+        if (total == 0)
+            return "No changes appear to be pending.";
+
+        var scopes = new List<string>(2);
+
+        if (userCount > 0)
+            scopes.Add($"{userCount} User");
+
+        if (machineCount > 0)
+            scopes.Add($"{machineCount} Machine");
+
+        var noun = total == 1 ? "change is" : "changes are";
+        return $"{total} {noun} still pending ({string.Join(", ", scopes)}).";
+    }
+
+    private static int CountPending(BindingList<EnvModel> variables) =>
+        variables.Count(v => v.State != EnvironmentalVariableState.Unchanged);
 }

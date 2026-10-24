@@ -21,6 +21,7 @@ internal partial class MainForm : Form
     private readonly IActionFactory<EnvModel> _entryFormFactory;
     private readonly IUpdateService _updateService;
     private readonly IConfigService _configService;
+    private readonly IAppLog _log;
     private readonly IServiceProvider _serviceProvider;
 
     // Set when the process is deliberately torn down (elevation restart, discard, or
@@ -33,7 +34,7 @@ internal partial class MainForm : Form
     // Clears the transient "Applied N changes" message from the status strip.
     private readonly System.Windows.Forms.Timer _applyStatusTimer;
 
-    public MainForm(IEnvService es, IPathAdapter pa, IActionFactory<EnvModel> af, IUpdateService us, ITabFactory tf, IPathGridFactory gf, IServiceProvider sp, IConfigService cs, MetadataRepository mr)
+    public MainForm(IEnvService es, IPathAdapter pa, IActionFactory<EnvModel> af, IUpdateService us, ITabFactory tf, IPathGridFactory gf, IServiceProvider sp, IConfigService cs, IAppLog log, MetadataRepository mr)
     {
         InitializeComponent();
 
@@ -45,6 +46,7 @@ internal partial class MainForm : Form
         _entryFormFactory = af;
         _serviceProvider = sp;
         _configService = cs;
+        _log = log;
 
         ApplyElevationWindowGeometry();
 
@@ -310,9 +312,10 @@ internal partial class MainForm : Form
         {
             DialogHelper.ShowInfo("The repository is unavailable.\nCheck the owners webpage.", "Updater");
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
             // HttpClient timeout: the host never answered.
+            _log.Error("Update check timed out.", ex);
             DialogHelper.ShowInfo("Cannot access the internet", "Updater");
         }
         finally

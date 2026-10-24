@@ -29,7 +29,8 @@ internal interface IUpdateService
 /// Service for checking for application updates via the GitHub API.
 /// </summary>
 /// <param name="_mr">The metadata repository containing version and API information.</param>
-internal sealed class UpdateService(MetadataRepository _mr) : IUpdateService
+/// <param name="_log">Where an unusable release response is recorded.</param>
+internal sealed class UpdateService(MetadataRepository _mr, IAppLog _log) : IUpdateService
 {
     /// <summary>Upper bound for the whole request, so an unresponsive host cannot hang the check.</summary>
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(10);
@@ -65,8 +66,9 @@ internal sealed class UpdateService(MetadataRepository _mr) : IUpdateService
         {
             doc = JsonDocument.Parse(json);
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
+            _log.Error("Update check returned a response that is not valid JSON.", ex);
             return null;
         }
 

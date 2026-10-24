@@ -42,7 +42,8 @@ internal sealed record ApplyResult(
 /// Handles creating, modifying, and deleting environmental variables.
 /// </summary>
 /// <param name="_es">The service managing environmental variables.</param>
-internal sealed class EnvAdapter(IEnvService _es) : IPathAdapter
+/// <param name="_log">Where a failed write is recorded.</param>
+internal sealed class EnvAdapter(IEnvService _es, IAppLog _log) : IPathAdapter
 {
     /// <summary>
     /// Applies all pending changes to the system environment variables.
@@ -80,7 +81,7 @@ internal sealed class EnvAdapter(IEnvService _es) : IPathAdapter
     /// <param name="t">The type of environmental variable (User or Machine).</param>
     /// <param name="models">The collection of models to process.</param>
     /// <returns>The number of rows written, plus the row and error message that stopped the run (if any).</returns>
-    private static (int Applied, EnvModel? Failed, string? Error) ApplyAndClean(
+    private (int Applied, EnvModel? Failed, string? Error) ApplyAndClean(
         EnvironmentalVariableType t, BindingList<EnvModel> models)
     {
         var target = EnvTypeConverter.ToTarget(t);
@@ -108,6 +109,7 @@ internal sealed class EnvAdapter(IEnvService _es) : IPathAdapter
                 }
                 catch (Exception ex)
                 {
+                    _log.Error($"Could not write {t} variable \"{model.Name}\".", ex);
                     return (applied, model, ex.Message);
                 }
 

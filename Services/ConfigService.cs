@@ -23,12 +23,17 @@ internal class ConfigService : IConfigService
 
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
+    private readonly IAppLog _log;
+
     private readonly string CurrentDirectory;
 
     private readonly string ConfigPath;
 
-    public ConfigService()
+    /// <param name="log">Where load and save failures are recorded.</param>
+    public ConfigService(IAppLog log)
     {
+        _log = log;
+
         CurrentDirectory = AppDomain.CurrentDomain.BaseDirectory;
         ConfigPath = Path.Combine(CurrentDirectory, "config.json");
 
@@ -63,6 +68,7 @@ internal class ConfigService : IConfigService
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
             // Settings are not worth crashing the app on exit; the previous file stays intact.
+            _log.Error($"Could not save settings to {ConfigPath}.", ex);
         }
     }
 
@@ -78,6 +84,10 @@ internal class ConfigService : IConfigService
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
+            // A missing file is the ordinary first run; anything else is worth an entry.
+            if (ex is not FileNotFoundException)
+                _log.Error($"Could not read settings from {ConfigPath}; using defaults.", ex);
+
             return null;
         }
     }

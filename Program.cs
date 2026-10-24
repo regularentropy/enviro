@@ -1,6 +1,7 @@
 using enviro.Factories;
 using enviro.Models;
 using enviro.Services;
+using enviro.Static;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace enviro
@@ -15,8 +16,30 @@ namespace enviro
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
+            // Built before the container: the crash path must not depend on DI.
+            var appLog = new AppLog();
+            Exception? lastReported = null;
+
+            void ReportUnhandled(Exception? exception)
+            {
+                // One log entry and one dialog per exception, even when both handlers see it.
+                if (exception is null || ReferenceEquals(exception, lastReported))
+                    return;
+
+                lastReported = exception;
+                appLog.Error("Unhandled exception", exception);
+                DialogHelper.ShowError(
+                    $"Enviro hit an unexpected error. The details were written to:\n{appLog.FilePath}",
+                    "Unexpected error");
+            }
+
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            Application.ThreadException += (_, e) => ReportUnhandled(e.Exception);
+            AppDomain.CurrentDomain.UnhandledException += (_, e) => ReportUnhandled(e.ExceptionObject as Exception);
+
             var services = new ServiceCollection();
 
+            services.AddSingleton<IAppLog>(appLog);
             services.AddSingleton<IEnvService, EnvService>();
 
             services.AddSingleton<IContextMenuFactory, ContextMenuFactory>();

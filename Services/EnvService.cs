@@ -33,6 +33,12 @@ internal interface IEnvService
     bool HasChanges();
 
     /// <summary>
+    /// Re-reads both scopes from the system, discarding every in-memory edit. The refreshed
+    /// lists are in name order and every model starts as <c>Unchanged</c> with no corrupted overlay.
+    /// </summary>
+    void Reload();
+
+    /// <summary>
     /// Adds a new environmental variable entry.
     /// </summary>
     /// <param name="pm">The model to add.</param>
@@ -107,6 +113,16 @@ internal sealed class EnvService : IEnvService
     public bool HasChanges() =>
         variables.User.Any(v => v.State != EnvironmentalVariableState.Unchanged) ||
         variables.Machine.Any(v => v.State != EnvironmentalVariableState.Unchanged);
+
+    /// <summary>
+    /// Re-reads both scopes from the system, discarding every in-memory edit.
+    /// </summary>
+    public void Reload()
+    {
+        variables.User.Clear();
+        variables.Machine.Clear();
+        FillPath();
+    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EnvService"/> class.

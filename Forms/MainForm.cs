@@ -179,6 +179,36 @@ internal partial class MainForm : Form
         Close();
     }
 
+    /// <summary>
+    /// Re-reads both scopes from the system, discarding pending edits only after confirmation.
+    /// </summary>
+    private void RefreshEntryClicked(object? sender, EventArgs e)
+    {
+        if (_envService.HasChanges())
+        {
+            var pending = CountTotalPendingChanges();
+
+            var result = DialogHelper.ShowConfirm(
+                $"{pending} {(pending == 1 ? "change has" : "changes have")} not been applied.\n\n" +
+                "Refreshing discards them. Continue?",
+                "Refresh");
+
+            if (result != DialogResult.OK)
+                return;
+        }
+
+        // Rows are rebuilt from the OS; drop filters and the transient apply message so the view starts clean.
+        _gridFactory.ClearFilters();
+        applyStatusLabel.Text = string.Empty;
+        _applyStatusTimer.Stop();
+
+        _envService.Reload();
+
+        // The reloaded models start clean; re-run the corruption pass and refresh the status strip.
+        _gridFactory.RescanAll();
+        UpdateActionState();
+    }
+
     private async void checkForUpdatesToolStripMenuItem_Click(object sender, EventArgs e)
     {
         try
@@ -274,6 +304,12 @@ internal partial class MainForm : Form
     /// </summary>
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
     {
+        if (keyData == Keys.F5)
+        {
+            RefreshEntryClicked(this, EventArgs.Empty);
+            return true;
+        }
+
         if (keyData == (Keys.Control | Keys.F))
         {
             if (AllTab.SelectedTab?.Controls.OfType<TextBox>().FirstOrDefault() is { } filter)

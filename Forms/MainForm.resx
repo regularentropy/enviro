@@ -228,7 +228,7 @@
     <value>$this</value>
   </data>
   <data name="&gt;&gt;toolStrip1.ZOrder" xml:space="preserve">
-    <value>1</value>
+    <value>2</value>
   </data>
   <data name="&gt;&gt;addToolStripButton.Name" xml:space="preserve">
     <value>addToolStripButton</value>
@@ -254,6 +254,57 @@
   <data name="&gt;&gt;applyToolStripButton.Type" xml:space="preserve">
     <value>System.Windows.Forms.ToolStripButton, System.Windows.Forms, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
+  <data name="statusStrip1.Location" type="System.Drawing.Point, System.Drawing">
+    <value>0, 428</value>
+  </data>
+  <data name="statusStrip1.Size" type="System.Drawing.Size, System.Drawing">
+    <value>800, 22</value>
+  </data>
+  <data name="statusStrip1.TabIndex" type="System.Int32, mscorlib">
+    <value>2</value>
+  </data>
+  <data name="statusStrip1.Text" xml:space="preserve">
+    <value>statusStrip1</value>
+  </data>
+  <data name="pendingStatusLabel.Text" xml:space="preserve">
+    <value>No pending changes</value>
+  </data>
+  <data name="corruptedStatusLabel.Text" xml:space="preserve">
+    <value>0 corrupted</value>
+  </data>
+  <data name="elevationStatusLabel.Text" xml:space="preserve">
+    <value>Standard user</value>
+  </data>
+  <data name="&gt;&gt;statusStrip1.Name" xml:space="preserve">
+    <value>statusStrip1</value>
+  </data>
+  <data name="&gt;&gt;statusStrip1.Type" xml:space="preserve">
+    <value>System.Windows.Forms.StatusStrip, System.Windows.Forms, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;statusStrip1.Parent" xml:space="preserve">
+    <value>$this</value>
+  </data>
+  <data name="&gt;&gt;statusStrip1.ZOrder" xml:space="preserve">
+    <value>1</value>
+  </data>
+  <data name="&gt;&gt;pendingStatusLabel.Name" xml:space="preserve">
+    <value>pendingStatusLabel</value>
+  </data>
+  <data name="&gt;&gt;pendingStatusLabel.Type" xml:space="preserve">
+    <value>System.Windows.Forms.ToolStripStatusLabel, System.Windows.Forms, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;corruptedStatusLabel.Name" xml:space="preserve">
+    <value>corruptedStatusLabel</value>
+  </data>
+  <data name="&gt;&gt;corruptedStatusLabel.Type" xml:space="preserve">
+    <value>System.Windows.Forms.ToolStripStatusLabel, System.Windows.Forms, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;elevationStatusLabel.Name" xml:space="preserve">
+    <value>elevationStatusLabel</value>
+  </data>
+  <data name="&gt;&gt;elevationStatusLabel.Type" xml:space="preserve">
+    <value>System.Windows.Forms.ToolStripStatusLabel, System.Windows.Forms, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
   <data name="&gt;&gt;menuStrip1.Name" xml:space="preserve">
     <value>menuStrip1</value>
   </data>
@@ -264,7 +315,7 @@
     <value>$this</value>
   </data>
   <data name="&gt;&gt;menuStrip1.ZOrder" xml:space="preserve">
-    <value>2</value>
+    <value>3</value>
   </data>
   <assembly alias="System.Windows.Forms" name="System.Windows.Forms, Culture=neutral, PublicKeyToken=b77a5c561934e089" />
   <data name="AllTab.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
@@ -274,7 +325,7 @@
     <value>0, 49</value>
   </data>
   <data name="AllTab.Size" type="System.Drawing.Size, System.Drawing">
-    <value>800, 401</value>
+    <value>800, 379</value>
   </data>
   <data name="AllTab.TabIndex" type="System.Int32, mscorlib">
     <value>0</value>

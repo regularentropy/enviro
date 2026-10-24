@@ -44,13 +44,17 @@ internal partial class MainForm : Form
 
         this.Name = Assembly.GetExecutingAssembly().GetName().Name;
 
-        if (!AdminChecker.IsAdmin())
+        var isAdmin = AdminChecker.IsAdmin();
+
+        if (!isAdmin)
         {
             ToolStripItem item = new ToolStripMenuItem() { Text = "Run as Administrator" };
             saveToolStripMenuItem.DropDownItems.Add(item);
 
             item.Click += RestartAsAdmin;
         }
+
+        elevationStatusLabel.Text = isAdmin ? "Administrator" : "Standard user";
 
         AllTab.Controls.AddRange([
             _tabFactory.Create(EnvironmentalVariableType.User),
@@ -90,6 +94,7 @@ internal partial class MainForm : Form
 
         // Mark every row when enabled, clear every red row when disabled.
         _gridFactory.RescanAll();
+        UpdateStatusStrip();
     }
 
     private void AboutButtonClicked(object sender, EventArgs e)
@@ -202,6 +207,34 @@ internal partial class MainForm : Form
         deleteToolStripButton.Enabled = canMutate && hasSelection;
 
         UpdateApplyState();
+        UpdateStatusStrip();
+    }
+
+    /// <summary>
+    /// Summarises pending work, corrupted rows and the elevation state in the status strip.
+    /// </summary>
+    private void UpdateStatusStrip()
+    {
+        var bundle = _envService.GetPathModelBundle();
+
+        var added = StateCounter.CountByState(bundle, EnvironmentalVariableState.Added);
+        var modified = StateCounter.CountByState(bundle, EnvironmentalVariableState.Modified);
+        var deleted = StateCounter.CountByState(bundle, EnvironmentalVariableState.Deleted);
+        var total = added + modified + deleted;
+
+        pendingStatusLabel.Text = total == 0
+            ? "No pending changes"
+            : $"{added} added · {modified} modified · {deleted} deleted";
+
+        if (_configService.Config.EnableCorruptedValidation)
+        {
+            corruptedStatusLabel.Text = $"{StateCounter.CountCorrupted(bundle)} corrupted";
+            corruptedStatusLabel.Visible = true;
+        }
+        else
+        {
+            corruptedStatusLabel.Visible = false;
+        }
     }
 
     private void CreateEntryClicked(object? sender, EventArgs e)

@@ -16,6 +16,13 @@ internal interface IPathGridFactory
     /// <param name="tab">The type of environmental variable (User or Machine).</param>
     /// <returns>A configured DataGridView instance.</returns>
     DataGridView Create(EnvironmentalVariableType tab);
+
+    /// <summary>
+    /// Re-evaluates the corrupted-path overlay for every variable in both scopes.
+    /// Clears the overlay instead when <see cref="IConfigService.Config"/>'s
+    /// corrupted-validation option is off.
+    /// </summary>
+    void RescanAll();
 }
 
 /// <summary>
@@ -95,26 +102,24 @@ internal sealed class PathGridFactory : IPathGridFactory
             GridStyleHelper.SortGrid(grid, bindingSource, e.ColumnIndex);
         };
 
-        // Corrupted variable detection
+        // Corrupted variable detection. The subscription is always attached so turning the
+        // option on never requires rebuilding the grid; the handler checks the config instead.
+        bindingSource.ListChanged += (s, e) =>
+        {
+            // index resets to -1 on change
+            if (e.NewIndex < 0 || !_cs.Config.EnableCorruptedValidation)
+                return;
+
+            EnvModel m = (EnvModel)bindingSource[e.NewIndex]!;
+            MarkIfCorrupted(m);
+        };
+
+        // Mark the rows already bound to this grid when validation is enabled.
         if (_cs.Config.EnableCorruptedValidation)
         {
-            // Re-validating env model to detect if the path is corrupted
-            bindingSource.ListChanged += (s, e) =>
-            {
-                // index resets to -1 on change
-                if (e.NewIndex < 0)
-                    return;
-
-                EnvModel m = (EnvModel)bindingSource[e.NewIndex]!;
-                MarkIfCorrupted(m);
-            };
-
-            // Detecting env variables with corrupted path for the list bound to this grid
-
             var models = tab == EnvironmentalVariableType.User ? bundle.User : bundle.Machine;
 
             foreach (var env in models) MarkIfCorrupted(env);
-
         }
 
         grid.CellMouseDoubleClick += (s, e) =>
@@ -168,4 +173,21 @@ internal sealed class PathGridFactory : IPathGridFactory
     /// </summary>
     /// <param name="env">The model to validate.</param>
     public void MarkIfCorrupted(EnvModel env) => env.IsCorrupted = ValidationHelper.IsCorrupted(env.Path);
+
+    /// <summary>
+    /// Re-evaluates the corrupted-path overlay for every variable in both scopes, or clears it
+    /// when the option is off.
+    /// </summary>
+    public void RescanAll()
+    {
+        if (!_cs.Config.EnableCorruptedValidation)
+        {
+            foreach (var env in ps.GetUserVariables()) env.IsCorrupted = false;
+            foreach (var env in ps.GetMachineVariables()) env.IsCorrupted = false;
+            return;
+        }
+
+        foreach (var env in ps.GetUserVariables()) MarkIfCorrupted(env);
+        foreach (var env in ps.GetMachineVariables()) MarkIfCorrupted(env);
+    }
 }

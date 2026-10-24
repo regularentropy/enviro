@@ -67,21 +67,20 @@ internal static class ValidationHelper
     /// <summary>
     /// Validates if the path is corrupted.
     /// </summary>
-    /// <param name="model"></param>
-    /// <returns>True if the path is corrupted</returns>
+    /// <param name="path">The variable value to check.</param>
+    /// <returns>True if any path-like segment is missing.</returns>
     public static bool IsCorrupted(string path)
     {
-        // Handling structures similar to PATH, which have variables separated by ;
-        if (path.Contains(';'))
+        // PATH-like values hold several entries separated by ';'. Validate every non-blank segment.
+        foreach (var entry in path.Split(';'))
         {
-            string[] pathArr = path.Split(';');
-            foreach (var item in pathArr)
-            {
-                if (!IsValidEntry(item)) return true;
-                return false;
-            }
+            if (string.IsNullOrWhiteSpace(entry))
+                continue;
+
+            if (!IsValidEntry(entry))
+                return true;
         }
-        if (!IsValidEntry(path)) return true;
+
         return false;
     }
 

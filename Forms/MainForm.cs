@@ -15,25 +15,25 @@ namespace enviro;
 internal partial class MainForm : Form
 {
     private readonly ITabFactory _tabFactory;
+    private readonly IPathGridFactory _gridFactory;
     private readonly IEnvService _envService;
     private readonly IPathAdapter _pathAdapter;
     private readonly IUpdateService _updateService;
     private readonly IConfigService _configService;
     private readonly IServiceProvider _serviceProvider;
 
-    private bool _revertingCorruptedToggle;
-
     // Set when the process is deliberately torn down (elevation restart, discard, or
     // apply-then-close) so the close guard does not ask a second time.
     private bool _isRestarting;
 
-    public MainForm(IEnvService es, IPathAdapter pa, IUpdateService us, ITabFactory tf, IServiceProvider sp, IConfigService cs, MetadataRepository mr)
+    public MainForm(IEnvService es, IPathAdapter pa, IUpdateService us, ITabFactory tf, IPathGridFactory gf, IServiceProvider sp, IConfigService cs, MetadataRepository mr)
     {
         InitializeComponent();
 
         this.CenterToScreen();
 
         _tabFactory = tf;
+        _gridFactory = gf;
         _updateService = us;
         _envService = es;
         _pathAdapter = pa;
@@ -72,31 +72,16 @@ internal partial class MainForm : Form
 
     private void CorruptedVarsButtonClicked(object? sender, EventArgs e)
     {
-        if (sender is not ToolStripMenuItem item || _revertingCorruptedToggle)
-        {
+        if (sender is not ToolStripMenuItem item)
             return;
-        }
 
-        var previous = _configService.Config.EnableCorruptedValidation;
         _configService.Config.EnableCorruptedValidation = item.Checked;
 
-        var result = DialogHelper.ShowConfirm(
-            "Application restart required",
-            "Apply changes and restart now?"
-        );
+        // Persist immediately so the choice survives even a crash; the exit hook stays as-is.
+        _configService.Save();
 
-        if (result == DialogResult.OK)
-        {
-            Application.Restart();
-            return;
-        }
-
-        // Declined: undo both the setting and the menu state.
-        _configService.Config.EnableCorruptedValidation = previous;
-
-        _revertingCorruptedToggle = true;
-        item.Checked = previous;
-        _revertingCorruptedToggle = false;
+        // Mark every row when enabled, clear every red row when disabled.
+        _gridFactory.RescanAll();
     }
 
     private void AboutButtonClicked(object sender, EventArgs e)

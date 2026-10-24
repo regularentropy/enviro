@@ -14,21 +14,25 @@ internal abstract partial class AbstractEntryForm : Form
 
         _envService = es;
 
-        nameTextBox.TextChanged += PathTextBox_Validating;
-        pathTextBox.TextChanged += PathTextBox_Validating;
+        nameTextBox.TextChanged += TextBox_Changed;
+        pathTextBox.TextChanged += TextBox_Changed;
 
         loadDialogueButton.MouseDown += DialogueAction;
 
         new ToolTip().SetToolTip(loadDialogueButton, "LMB - open folder, RMB - open file");
 
+        UpdateActionState();
+
         this.CenterToScreen();
     }
 
-    protected void PathTextBox_Validating(object? sender, EventArgs e)
-    {
-        var box = (TextBox)sender!;
-        addButton.Enabled = !ValidationHelper.ContainsInvalidCharacters(box.Text);
-    }
+    /// <summary>
+    /// Enables the action button only when both fields are usable.
+    /// </summary>
+    protected void UpdateActionState() =>
+        addButton.Enabled = ValidationHelper.IsValidEnvironmentVariableInput(nameTextBox.Text, pathTextBox.Text);
+
+    private void TextBox_Changed(object? sender, EventArgs e) => UpdateActionState();
 
     protected abstract void RunAction(object sender, EventArgs e);
 

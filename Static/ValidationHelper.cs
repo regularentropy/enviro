@@ -6,7 +6,7 @@
 internal static class ValidationHelper
 {
     /// <summary>
-    /// Validates that both name and path are not empty or whitespace.
+    /// Validates that both name and path are not empty or whitespace, and that neither holds a forbidden character.
     /// Displays a warning dialog if validation fails.
     /// </summary>
     /// <param name="name">The environmental variable name to validate.</param>
@@ -19,15 +19,50 @@ internal static class ValidationHelper
             DialogHelper.ShowWarning("Name and path cannot be empty or consist only of spaces.", "Validation");
             return false;
         }
+
+        if (ContainsInvalidCharacters(name))
+        {
+            DialogHelper.ShowWarning("Name cannot contain '=' or a null character.", "Validation");
+            return false;
+        }
+
+        if (ContainsInvalidValueCharacters(path))
+        {
+            DialogHelper.ShowWarning("Path cannot contain a null character.", "Validation");
+            return false;
+        }
+
         return true;
     }
 
     /// <summary>
-    /// Checks if the text contains the equals sign ('=') character, which is invalid in environmental variable names.
+    /// Silent version of <see cref="ValidateEnvironmentVariableInput"/>; same rules, no dialog.
     /// </summary>
-    /// <param name="text">The text to check.</param>
-    /// <returns>True if the text contains '=', false otherwise.</returns>
-    public static bool ContainsInvalidCharacters(string text) => text.Contains('=');
+    /// <param name="name">The environmental variable name to check.</param>
+    /// <param name="path">The environmental variable path to check.</param>
+    /// <returns>True if the input may be submitted, false otherwise.</returns>
+    public static bool IsValidEnvironmentVariableInput(string name, string path) =>
+        !string.IsNullOrWhiteSpace(name)
+        && !string.IsNullOrWhiteSpace(path)
+        && !ContainsInvalidCharacters(name)
+        && !ContainsInvalidValueCharacters(path);
+
+    /// <summary>
+    /// Checks a variable name for characters Windows cannot accept: '=' separates name from value in the
+    /// environment block (.NET throws on it), NUL terminates the entry.
+    /// </summary>
+    /// <param name="name">The name to check.</param>
+    /// <returns>True if the name contains a forbidden character, false otherwise.</returns>
+    private static bool ContainsInvalidCharacters(string name) =>
+        name.Contains('=') || name.Contains('\0');
+
+    /// <summary>
+    /// Checks a variable value for characters Windows cannot accept. Only NUL is forbidden; '=', ';', quotes
+    /// and the shell metacharacters are legal inside a value.
+    /// </summary>
+    /// <param name="value">The value to check.</param>
+    /// <returns>True if the value contains a forbidden character, false otherwise.</returns>
+    private static bool ContainsInvalidValueCharacters(string value) => value.Contains('\0');
 
     /// <summary>
     /// Validates if the path is corrupted.

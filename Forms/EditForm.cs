@@ -32,12 +32,6 @@ internal partial class EditForm : AbstractEntryForm
         if (!ValidationHelper.ValidateEnvironmentVariableInput(newName, newPath))
             return;
 
-        if (ValidationHelper.ContainsInvalidCharacters(newName))
-        {
-            DialogHelper.ShowError("Name cannot contain '='", "Validation");
-            return;
-        }
-
         if (_pm_ref.State == EnvironmentalVariableState.Deleted)
         {
             DialogHelper.ShowError("Restore the variable before editing it.", "Validation");

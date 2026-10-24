@@ -41,6 +41,28 @@ internal interface IEnvService
 }
 
 /// <summary>
+/// Which case an <see cref="IEnvScope.Upsert"/> resolved to.
+/// </summary>
+internal enum UpsertOutcome
+{
+    /// <summary>
+    /// The name was not in the scope; a new row was added.
+    /// </summary>
+    Added,
+
+    /// <summary>
+    /// The name already had a row; it now holds the new value (a pending deletion was undone).
+    /// </summary>
+    Overridden,
+
+    /// <summary>
+    /// The name already had a row that is not deleted and overwriting was not requested:
+    /// nothing was mutated.
+    /// </summary>
+    Refused,
+}
+
+/// <summary>
 /// One variable scope: the rows that belong to <see cref="Type"/> plus every operation bound to
 /// that scope. The rows are handed out read-only, so nothing outside the service can add, remove
 /// or reorder them.
@@ -72,13 +94,30 @@ internal interface IEnvScope
     void Update(EnvModel model, string newValue);
 
     /// <summary>
-    /// Renames an environmental variable in place. Rejects blank names, unknown source models
-    /// and collisions with another variable, leaving every model untouched.
+    /// Resolves the whole create path in one call: a new name becomes an <c>Added</c> row, a name
+    /// whose deletion is still pending comes back with the new value, and a live row takes the new
+    /// value. It neither prompts nor reports.
     /// </summary>
-    /// <param name="oldName">The current name.</param>
+    /// <param name="name">The variable name.</param>
+    /// <param name="value">The value to store under that name.</param>
+    /// <param name="overwrite">
+    /// False refuses to touch a row that is not deleted, so the caller's prompt cannot be bypassed.
+    /// </param>
+    /// <returns>Which case happened; <see cref="UpsertOutcome.Refused"/> mutates nothing.</returns>
+    UpsertOutcome Upsert(string name, string value, bool overwrite);
+
+    /// <summary>
+    /// Resolves the whole edit path in one call: renames and revalues one row, or rejects the edit
+    /// without touching any model. The rename is applied as part of it, never separately.
+    /// </summary>
+    /// <param name="model">The row to edit; it must be one of this scope's rows.</param>
     /// <param name="newName">The new name.</param>
-    /// <returns>The model that now holds the new name, or null when the rename was rejected.</returns>
-    EnvModel? Rename(string oldName, string newName);
+    /// <param name="newValue">The new value.</param>
+    /// <returns>
+    /// The row that now holds the edit, or null and the user-facing reason it was rejected
+    /// (blank name, collision, unknown row or a pending deletion).
+    /// </returns>
+    (EnvModel? Model, string? Rejection) ApplyEdit(EnvModel model, string newName, string newValue);
 
     /// <summary>
     /// Removes an environmental variable entry, or marks it as deleted when it was already written.
@@ -209,12 +248,73 @@ internal sealed class EnvScope(EnvironmentalVariableType type) : IEnvScope
     }
 
     /// <summary>
-    /// Renames an environmental variable in place.
+    /// Resolves the whole create path: adds a new row, restores a pending deletion or overwrites
+    /// a live row.
+    /// </summary>
+    /// <param name="name">The variable name.</param>
+    /// <param name="value">The value to store under that name.</param>
+    /// <param name="overwrite">False refuses to touch a row that is not deleted.</param>
+    /// <returns>Which case happened; a refused upsert mutates nothing.</returns>
+    public UpsertOutcome Upsert(string name, string value, bool overwrite)
+    {
+        var existing = GetByName(name);
+
+        if (existing is null)
+        {
+            Add(new EnvModel { Name = name, Path = value });
+            return UpsertOutcome.Added;
+        }
+
+        if (existing.State == EnvironmentalVariableState.Deleted)
+        {
+            // Restore first: Update is a no-op on a deleted row, so the order carries the value.
+            Restore(existing);
+            Update(existing, value);
+            return UpsertOutcome.Overridden;
+        }
+
+        if (!overwrite)
+            return UpsertOutcome.Refused;
+
+        Update(existing, value);
+        return UpsertOutcome.Overridden;
+    }
+
+    /// <summary>
+    /// Resolves the whole edit path: renames and revalues one row, or rejects the edit without
+    /// touching any model.
+    /// </summary>
+    /// <param name="model">The row to edit.</param>
+    /// <param name="newName">The new name.</param>
+    /// <param name="newValue">The new value.</param>
+    /// <returns>The row that now holds the edit, or null and the reason it was rejected.</returns>
+    public (EnvModel? Model, string? Rejection) ApplyEdit(EnvModel model, string newName, string newValue)
+    {
+        // Reference check: a model another scope (or a stale snapshot) holds is not editable here.
+        if (!rows.Contains(model))
+            return (null, "The variable is no longer in this list.");
+
+        if (model.State == EnvironmentalVariableState.Deleted)
+            return (null, "Restore the variable before editing it.");
+
+        // Rename rejects a blank name, an unknown row and a collision with another variable.
+        var target = Rename(model.Name, newName);
+
+        if (target is null)
+            return (null, $"Cannot rename to '{newName}': the name is already in use.");
+
+        Update(target, newValue);
+
+        return (target, null);
+    }
+
+    /// <summary>
+    /// Renames an environmental variable in place; the primitive inside <see cref="ApplyEdit"/>.
     /// </summary>
     /// <param name="oldName">The current name.</param>
     /// <param name="newName">The new name.</param>
     /// <returns>The model that now holds the new name, or null when the rename was rejected.</returns>
-    public EnvModel? Rename(string oldName, string newName)
+    private EnvModel? Rename(string oldName, string newName)
     {
         if (string.IsNullOrWhiteSpace(newName))
             return null;

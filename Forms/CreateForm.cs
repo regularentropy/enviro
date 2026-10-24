@@ -1,5 +1,4 @@
-﻿using enviro.Models;
-using enviro.Services;
+﻿using enviro.Services;
 using enviro.Static;
 
 namespace enviro.Forms;
@@ -24,27 +23,17 @@ internal partial class CreateForm : AbstractEntryForm
         if (!ValidationHelper.ValidateEnvironmentVariableInput(name, path))
             return;
 
-        if (!_scope.Contains(name))
-        {
-            _scope.Add(new EnvModel { Name = name, Path = path });
-            this.Close();
+        var existing = _scope.Contains(name) ? _scope.GetByName(name) : null;
 
-            return;
+        if (existing is not null)
+        {
+            var res = DialogHelper.ShowConfirm($"'{existing.Name}' already exists with value:\n{existing.Path}\n\nOverride?");
+
+            if (res != DialogResult.OK)
+                return;
         }
 
-        var existing = _scope.GetByName(name);
-        if (existing is null)
-            return;
-
-        var res = DialogHelper.ShowConfirm($"'{existing.Name}' already exists with value:\n{existing.Path}\n\nOverride?");
-
-        if (res == DialogResult.OK)
-        {
-            if (existing.State == EnvironmentalVariableState.Deleted)
-                _scope.Restore(existing);
-
-            _scope.Update(existing, path);
-            this.Close();
-        }
+        _scope.Upsert(name, path, overwrite: existing is not null);
+        this.Close();
     }
 }

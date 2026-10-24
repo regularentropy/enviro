@@ -94,31 +94,19 @@ internal partial class EditForm : AbstractEntryForm
         if (!ValidationHelper.ValidateEnvironmentVariableInput(newName, newPath))
             return;
 
-        if (_pm_ref.State == EnvironmentalVariableState.Deleted)
-        {
-            DialogHelper.ShowError("Restore the variable before editing it.", "Validation");
-            return;
-        }
-
-        bool nameChanged = newName != _pm_ref.Name;
-        bool pathChanged = newPath != _pm_ref.Path;
-
-        if (!nameChanged && !pathChanged)
+        if (!HasPendingChange())
         {
             DialogHelper.ShowInfo("No changes detected", "Edit");
             return;
         }
 
-        var target = nameChanged ? _scope.Rename(_pm_ref.Name, newName) : _pm_ref;
+        var edit = _scope.ApplyEdit(_pm_ref, newName, newPath);
 
-        if (target == null)
+        if (edit.Model is null)
         {
-            DialogHelper.ShowError($"Cannot rename to '{newName}': the name is already in use.", "Validation");
+            DialogHelper.ShowError(edit.Rejection ?? string.Empty, "Validation");
             return;
         }
-
-        if (pathChanged)
-            _scope.Update(target, newPath);
 
         this.Close();
     }

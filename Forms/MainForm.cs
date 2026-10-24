@@ -471,6 +471,21 @@ internal partial class MainForm : Form
     }
 
     /// <summary>
+    /// Requests the first corrupted-path scan once the window is up.
+    /// </summary>
+    /// <remarks>
+    /// The grid asks for a scan while it is created, which happens in the constructor, before
+    /// <c>Application.Run</c> pumps messages — that request can be lost, leaving the overlay empty
+    /// until something else asks again. This one is issued on the UI thread inside the running loop.
+    /// </remarks>
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+
+        _corruption.RequestScanAll();
+    }
+
+    /// <summary>
     /// Stops the transient-status timer when the window goes away.
     /// </summary>
     protected override void OnFormClosed(FormClosedEventArgs e)

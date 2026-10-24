@@ -138,7 +138,12 @@ internal sealed class EnvGridFactory : IEnvGridFactory
             // The overlay write is itself a list change; only value changes ask for a new scan.
             if (e.ListChangedType == ListChangedType.ItemChanged
                 && e.PropertyDescriptor?.Name == nameof(EnvModel.IsCorrupted))
+            {
+                // IsCorrupted has no bound column, so DataGridView repaints no cell for it and the
+                // row keeps its old colour until something else invalidates the grid.
+                grid.Invalidate();
                 return;
+            }
 
             _corruption.RequestScan(scope);
         };

@@ -27,14 +27,15 @@ internal partial class MainForm : Form
     // apply-then-close) so the close guard does not ask a second time.
     private bool _isRestarting;
 
+    // Command-line argument the elevated restart uses to pass the current window bounds.
+    private const string WindowBoundsArgument = "--window-bounds";
+
     // Clears the transient "Applied N changes" message from the status strip.
     private readonly System.Windows.Forms.Timer _applyStatusTimer;
 
     public MainForm(IEnvService es, IPathAdapter pa, IActionFactory<EnvModel> af, IUpdateService us, ITabFactory tf, IPathGridFactory gf, IServiceProvider sp, IConfigService cs, MetadataRepository mr)
     {
         InitializeComponent();
-
-        this.CenterToScreen();
 
         _tabFactory = tf;
         _gridFactory = gf;
@@ -44,6 +45,8 @@ internal partial class MainForm : Form
         _entryFormFactory = af;
         _serviceProvider = sp;
         _configService = cs;
+
+        ApplyElevationWindowGeometry();
 
         _applyStatusTimer = new System.Windows.Forms.Timer { Interval = 5000 };
         _applyStatusTimer.Tick += (_, _) =>
@@ -119,12 +122,18 @@ internal partial class MainForm : Form
 
     public void RestartAsAdmin(object? sender, EventArgs e)
     {
+        // Kept for this process tree only: the elevated instance reads it from its command line,
+        // so nothing is persisted and a later launch (or a reboot) starts centred.
+        var bounds = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
+        var maximized = WindowState == FormWindowState.Maximized;
+
         ProcessStartInfo proc = new()
         {
             UseShellExecute = true,
             WorkingDirectory = Environment.CurrentDirectory,
             FileName = Application.ExecutablePath,
-            Verb = "runas"
+            Verb = "runas",
+            Arguments = $"{WindowBoundsArgument} {bounds.X},{bounds.Y},{bounds.Width},{bounds.Height},{(maximized ? 1 : 0)}"
         };
         try
         {
@@ -186,6 +195,68 @@ internal partial class MainForm : Form
         _isRestarting = true;
         Close();
     }
+
+    /// <summary>
+    /// Applies the bounds passed by an elevation restart; every other launch centres the window.
+    /// </summary>
+    /// <remarks>
+    /// The values live only in this process's command line, so they cannot survive a reboot or
+    /// leak into a later ordinary launch.
+    /// </remarks>
+    private void ApplyElevationWindowGeometry()
+    {
+        if (!TryGetElevationBounds(out var bounds, out var maximized) || !IsOnConnectedScreen(bounds))
+        {
+            CenterToScreen();
+            return;
+        }
+
+        StartPosition = FormStartPosition.Manual;
+        Bounds = bounds;
+
+        if (maximized)
+            WindowState = FormWindowState.Maximized;
+    }
+
+    /// <summary>
+    /// Reads the optional <c>--window-bounds x,y,width,height,maximized</c> argument.
+    /// </summary>
+    private static bool TryGetElevationBounds(out Rectangle bounds, out bool maximized)
+    {
+        bounds = Rectangle.Empty;
+        maximized = false;
+
+        var args = Environment.GetCommandLineArgs();
+
+        for (var i = 0; i < args.Length - 1; i++)
+        {
+            if (!string.Equals(args[i], WindowBoundsArgument, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var parts = args[i + 1].Split(',');
+
+            if (parts.Length != 5
+                || !int.TryParse(parts[0], out var x)
+                || !int.TryParse(parts[1], out var y)
+                || !int.TryParse(parts[2], out var width)
+                || !int.TryParse(parts[3], out var height))
+                return false;
+
+            bounds = new Rectangle(x, y, width, height);
+            maximized = parts[4] == "1";
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether the passed bounds are plausible and still touch a connected screen.
+    /// </summary>
+    private static bool IsOnConnectedScreen(Rectangle bounds) =>
+        bounds.Width >= 200
+        && bounds.Height >= 150
+        && Screen.AllScreens.Any(screen => screen.WorkingArea.IntersectsWith(bounds));
 
     /// <summary>
     /// Re-reads both scopes from the system, discarding pending edits only after confirmation.

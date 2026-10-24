@@ -180,10 +180,12 @@ internal sealed class EnvService : IEnvService
 
         foreach (System.Collections.DictionaryEntry de in Environment.GetEnvironmentVariables(target))
         {
+            var name = de.Key?.ToString() ?? string.Empty;
             var path = de.Value?.ToString() ?? string.Empty;
             variables.Add(new EnvModel
             {
-                Name = de.Key?.ToString(),
+                Name = name,
+                OriginalName = name,
                 Path = path,
                 OriginalPath = path,
                 State = EnvironmentalVariableState.Unchanged,
@@ -202,6 +204,7 @@ internal sealed class EnvService : IEnvService
     {
 
         pm.State = EnvironmentalVariableState.Added;
+        pm.OriginalName = pm.Name;
         pm.OriginalPath = pm.Path;
 
         GetVariablesByType(t).Add(pm);
@@ -225,7 +228,7 @@ internal sealed class EnvService : IEnvService
     }
 
     /// <summary>
-    /// Renames an environmental variable by marking the old one as deleted and creating a new one.
+    /// Renames an environmental variable in place.
     /// </summary>
     /// <param name="oldName">The current name.</param>
     /// <param name="newName">The new name.</param>
@@ -245,25 +248,14 @@ internal sealed class EnvService : IEnvService
         if (target != null && target != foundModel)
             return null;
 
-        if (foundModel.State == EnvironmentalVariableState.Added)
-        {
-            foundModel.Name = newName;
-            return foundModel;
-        }
+        foundModel.Name = newName;
 
-        foundModel.State = EnvironmentalVariableState.Deleted;
+        // A persisted row has to reach the registry, so the rename makes it Modified; an addition
+        // that has not been written yet stays Added.
+        if (foundModel.State != EnvironmentalVariableState.Added)
+            foundModel.State = EnvironmentalVariableState.Modified;
 
-        var newModel = new EnvModel
-        {
-            Name = newName,
-            Path = foundModel.Path,
-            OriginalPath = string.Empty,
-            State = EnvironmentalVariableState.Added
-        };
-
-        GetVariablesByType(t).Add(newModel);
-
-        return newModel;
+        return foundModel;
     }
 
     /// <summary>
@@ -295,37 +287,34 @@ internal sealed class EnvService : IEnvService
     }
 
     /// <summary>
-    /// Resets a modified environmental variable to its original value and state.
+    /// Resets a modified environmental variable to its baseline: the original name and value.
     /// </summary>
     /// <param name="pm">The model to reset.</param>
     public void ResetItem(EnvModel pm)
     {
-        pm.State = EnvironmentalVariableState.Unchanged;
+        pm.Name = pm.OriginalName;
         pm.Path = pm.OriginalPath;
+        pm.State = EnvironmentalVariableState.Unchanged;
     }
 
     /// <summary>
-    /// Restores a deleted environmental variable by marking it as unchanged.
+    /// Restores a deleted environmental variable by marking it as unchanged under its original name.
     /// </summary>
     /// <param name="pm">The model to restore.</param>
-    public void RestoreItem(EnvModel pm) => pm.State = EnvironmentalVariableState.Unchanged;
+    public void RestoreItem(EnvModel pm)
+    {
+        pm.Name = pm.OriginalName;
+        pm.State = EnvironmentalVariableState.Unchanged;
+    }
 
     /// <summary>
     /// Finds an environmental variable by name in the specified collection.
-    /// A live (non-deleted) row wins over a row that is pending deletion, so a
-    /// delete+add rename pair cannot shadow the row that now holds the name.
     /// </summary>
     /// <param name="name">The name to search for.</param>
     /// <param name="t">The type of environmental variable (User or Machine).</param>
     /// <returns>The model if found, null otherwise.</returns>
-    public EnvModel? GetModelByName(string name, EnvironmentalVariableType t)
-    {
-        var array = GetVariablesByType(t);
-        return array.FirstOrDefault(s =>
-                   s.State != EnvironmentalVariableState.Deleted
-                   && string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase))
-               ?? array.FirstOrDefault(s => string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase));
-    }
+    public EnvModel? GetModelByName(string name, EnvironmentalVariableType t) =>
+        GetVariablesByType(t).FirstOrDefault(s => string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Gets the collection of user-level environmental variables.

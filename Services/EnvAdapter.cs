@@ -87,7 +87,7 @@ internal sealed class EnvAdapter(IEnvService _es, IAppLog _log) : IPathAdapter
         var target = EnvTypeConverter.ToTarget(t);
         var applied = 0;
 
-        // Deleted first, so a rename's old key is removed before its new key is written.
+        // Deleted first, so a variable that is going away is removed before new names are written.
         EnvironmentalVariableState[] order =
         [
             EnvironmentalVariableState.Deleted,
@@ -102,6 +102,11 @@ internal sealed class EnvAdapter(IEnvService _es, IAppLog _log) : IPathAdapter
             {
                 try
                 {
+                    // A renamed row was never written under its new name, so the key to remove is
+                    // the original one. Windows keys are case-insensitive, hence the ordinal compare.
+                    if (!string.Equals(model.OriginalName, model.Name, StringComparison.Ordinal))
+                        Environment.SetEnvironmentVariable(model.OriginalName, null, target);
+
                     Environment.SetEnvironmentVariable(
                         model.Name,
                         state == EnvironmentalVariableState.Deleted ? null : model.Path,
@@ -136,6 +141,7 @@ internal sealed class EnvAdapter(IEnvService _es, IAppLog _log) : IPathAdapter
         }
 
         model.State = EnvironmentalVariableState.Unchanged;
+        model.OriginalName = model.Name;
         model.OriginalPath = model.Path;
     }
 }

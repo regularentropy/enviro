@@ -17,6 +17,23 @@ internal class EnvModel : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    /// The name the variable is stored under in Windows: set at load time and after a successful
+    /// apply, so a pending rename knows which key to remove.
+    /// </summary>
+    public string OriginalName
+    {
+        get;
+        set
+        {
+            if (field != value)
+            {
+                field = value;
+                OnPropertyChanged(nameof(OriginalName));
+            }
+        }
+    }
+
     public string Path
     {
         get;

@@ -6,7 +6,7 @@ namespace enviro.Services;
 
 internal interface IConfigService
 {
-    ConfigModel? Config { get; }
+    ConfigModel Config { get; }
     bool IsDirty { get; }
     void Init();
     void Save();
@@ -19,7 +19,9 @@ internal class ConfigService : IConfigService
 {
     public bool IsDirty { get; private set; } = false;
 
-    public ConfigModel? Config { get; set; }
+    public ConfigModel Config { get; private set; } = new();
+
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     private readonly string CurrentDirectory;
 
@@ -34,26 +36,15 @@ internal class ConfigService : IConfigService
     }
 
     /// <summary>
-    /// Initializes config if path isn't exist
+    /// Loads config, falling back to defaults when the file is missing, unreadable or invalid.
+    /// The defaults are marked dirty so the next save rewrites the broken file.
     /// </summary>
     public void Init()
     {
-        if (!File.Exists(ConfigPath))
-        {
-            var cfg = new ConfigModel()
-            {
-                EnableCorruptedValidation = true
-            };
+        var loaded = Load();
 
-            Config = cfg;
-
-            using var createStream = File.Create(ConfigPath);
-            JsonSerializer.Serialize(createStream, cfg, new JsonSerializerOptions { WriteIndented = true });
-            return;
-        }
-
-        using var openStream = File.OpenRead(ConfigPath);
-        Config = JsonSerializer.Deserialize<ConfigModel>(openStream);
+        IsDirty = loaded is null;
+        Config = loaded ?? new ConfigModel { EnableCorruptedValidation = true };
 
         Config.PropertyChanged += OnConfigChanged;
     }
@@ -63,9 +54,32 @@ internal class ConfigService : IConfigService
     /// </summary>
     public void Save()
     {
-        using var createStream = File.Create(ConfigPath);
-        JsonSerializer.Serialize(createStream, Config, new JsonSerializerOptions { WriteIndented = true });
-        return;
+        try
+        {
+            var tempPath = ConfigPath + ".tmp";
+            File.WriteAllText(tempPath, JsonSerializer.Serialize(Config, JsonOptions));
+            File.Move(tempPath, ConfigPath, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            // Settings are not worth crashing the app on exit; the previous file stays intact.
+        }
+    }
+
+    /// <summary>
+    /// Reads the config file, or returns null when it is absent, unreadable or invalid.
+    /// </summary>
+    private ConfigModel? Load()
+    {
+        try
+        {
+            using var openStream = File.OpenRead(ConfigPath);
+            return JsonSerializer.Deserialize<ConfigModel>(openStream);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return null;
+        }
     }
 
     private void OnConfigChanged(object? sender, PropertyChangedEventArgs e)

@@ -20,6 +20,8 @@ internal partial class MainForm : Form
     private readonly IConfigService _configService;
     private readonly IServiceProvider _serviceProvider;
 
+    private bool _revertingCorruptedToggle;
+
     public MainForm(IEnvService es, IPathAdapter pa, IUpdateService us, ITabFactory tf, IServiceProvider sp, IConfigService cs, MetadataRepository mr)
     {
         InitializeComponent();
@@ -61,16 +63,31 @@ internal partial class MainForm : Form
 
     private void CorruptedVarsButtonClicked(object? sender, EventArgs e)
     {
-        _configService.Config.EnableCorruptedValidation = !_configService.Config.EnableCorruptedValidation;
+        if (sender is not ToolStripMenuItem item || _revertingCorruptedToggle)
+        {
+            return;
+        }
+
+        var previous = _configService.Config.EnableCorruptedValidation;
+        _configService.Config.EnableCorruptedValidation = item.Checked;
+
         var result = DialogHelper.ShowConfirm(
             "Application restart required",
             "Apply changes and restart now?"
         );
+
         if (result == DialogResult.OK)
         {
             Application.Restart();
-
+            return;
         }
+
+        // Declined: undo both the setting and the menu state.
+        _configService.Config.EnableCorruptedValidation = previous;
+
+        _revertingCorruptedToggle = true;
+        item.Checked = previous;
+        _revertingCorruptedToggle = false;
     }
 
     private void AboutButtonClicked(object sender, EventArgs e)

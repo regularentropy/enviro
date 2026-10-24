@@ -6,6 +6,16 @@ namespace enviro.Forms;
 
 internal abstract partial class AbstractEntryForm : Form
 {
+    /// <summary>
+    /// Design-time height of the form in its plain text view, as laid out at 96 DPI.
+    /// </summary>
+    protected const int TextModeHeight = 180;
+
+    /// <summary>
+    /// Design-time height of the form while the segment list is shown, as laid out at 96 DPI.
+    /// </summary>
+    protected const int EntriesModeHeight = 500;
+
     protected readonly IEnvService _envService;
 
     private readonly ContextMenuStrip _browseMenu;

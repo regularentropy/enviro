@@ -85,6 +85,25 @@ internal static class ValidationHelper
     }
 
     /// <summary>
+    /// Whether a variable is worth editing as a <c>;</c>-separated list of entries: its name is
+    /// <c>PATH</c> (case-insensitive) or its value already contains a separator.
+    /// </summary>
+    /// <param name="name">The variable name.</param>
+    /// <param name="value">The variable value.</param>
+    /// <returns>True when the segment editor applies.</returns>
+    public static bool IsPathList(string name, string value) =>
+        string.Equals(name.Trim(), "PATH", StringComparison.OrdinalIgnoreCase)
+        || value.Contains(';');
+
+    /// <summary>
+    /// Checks whether a single <c>;</c>-separated segment points at a missing location.
+    /// Non-path text is never missing.
+    /// </summary>
+    /// <param name="entry">The segment to check.</param>
+    /// <returns>True when the segment looks like a path but does not exist.</returns>
+    public static bool IsMissingPath(string entry) => !IsValidEntry(entry);
+
+    /// <summary>
     /// Validating entry (whether the variable has corrupted path or a simple text)
     /// </summary>
     /// <param name="path"></param>
@@ -108,8 +127,16 @@ internal static class ValidationHelper
     /// <returns>True if directory exists</returns>
     private static bool IsDirectoryExist(string path)
     {
-        var fullPath = Path.GetFullPath(path);
-        return Directory.Exists(fullPath) || File.Exists(fullPath);
+        try
+        {
+            var fullPath = Path.GetFullPath(path);
+            return Directory.Exists(fullPath) || File.Exists(fullPath);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or IOException)
+        {
+            // A malformed path cannot point at an existing location.
+            return false;
+        }
     }
 
     /// <summary>

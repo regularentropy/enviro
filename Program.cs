@@ -30,6 +30,7 @@ namespace enviro
             services.AddSingleton<MetadataRepository>();
 
             services.AddSingleton<IActionFactory<EnvModel>, EntryFormFactory>();
+            services.AddSingleton<IPathEditorFactory, PathEditorFactory>();
 
             services.AddTransient<MainForm>();
             services.AddTransient<AboutForm>();

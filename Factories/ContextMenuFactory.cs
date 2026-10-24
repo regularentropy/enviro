@@ -32,16 +32,19 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
 {
     private readonly IEnvService _pathService;
     private readonly IActionFactory<EnvModel> _entryFormFactory;
+    private readonly IPathEditorFactory _pathEditorFactory;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ContextMenuFactory"/> class.
     /// </summary>
     /// <param name="envService">The service for managing environmental variables.</param>
     /// <param name="factory">The factory for creating action forms.</param>
-    public ContextMenuFactory(IEnvService envService, IActionFactory<EnvModel> factory)
+    /// <param name="pathEditorFactory">The factory for the PATH segment editor.</param>
+    public ContextMenuFactory(IEnvService envService, IActionFactory<EnvModel> factory, IPathEditorFactory pathEditorFactory)
     {
         _pathService = envService;
         _entryFormFactory = factory;
+        _pathEditorFactory = pathEditorFactory;
     }
 
     /// <summary>
@@ -69,6 +72,12 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
         if (canMutate)
         {
             cms.Items.Add("Edit", null, (_, _) => RowActionHelper.Edit(grid, _entryFormFactory));
+
+            // The segment editor is an edit too, so it sits next to Edit. Deleted rows cannot be
+            // edited until they are restored.
+            if (pm.State != EnvironmentalVariableState.Deleted && ValidationHelper.IsPathList(pm.Name, pm.Path))
+                cms.Items.Add("Path entries…", null, (_, _) => EditPathEntries(grid, pm));
+
             cms.Items.Add("Delete", null, (_, _) => RowActionHelper.Delete(grid, _pathService));
             cms.Items.Add(new ToolStripSeparator());
         }
@@ -108,6 +117,19 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
     {
         var model = ControlHelper.GetCurrentModel(g);
         ClipboardHelper.CopyModelProperty(model, selector);
+    }
+
+    /// <summary>
+    /// Opens the shared edit window with the segment list already showing.
+    /// </summary>
+    /// <param name="grid">The grid that determines the scope.</param>
+    /// <param name="pm">The model to edit.</param>
+    private void EditPathEntries(DataGridView grid, EnvModel pm)
+    {
+        if (!AdminChecker.ValidateTab(grid))
+            return;
+
+        _pathEditorFactory.ShowInEditor(grid.FindForm(), pm, ControlHelper.GetTabType(grid));
     }
 
     /// <summary>

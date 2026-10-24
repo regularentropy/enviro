@@ -31,7 +31,7 @@ internal partial class MainForm : Form
     // Command-line argument the elevated restart uses to pass the current window bounds.
     private const string WindowBoundsArgument = "--window-bounds";
 
-    // Clears the transient "Applied N changes" message from the status strip.
+    // Clears the transient message (applied changes, failed settings save) from the status strip.
     private readonly System.Windows.Forms.Timer _applyStatusTimer;
 
     public MainForm(IEnvService es, IPathAdapter pa, IActionFactory<EnvModel> af, IUpdateService us, ITabFactory tf, IPathGridFactory gf, IServiceProvider sp, IConfigService cs, IAppLog log, MetadataRepository mr)
@@ -56,6 +56,9 @@ internal partial class MainForm : Form
             _applyStatusTimer.Stop();
             applyStatusLabel.Text = string.Empty;
         };
+
+        // A failed settings save is reported without a dialog: the app keeps running, just unsaved.
+        _configService.SaveFailed += OnConfigSaveFailed;
 
         this.Name = Assembly.GetExecutingAssembly().GetName().Name;
 
@@ -473,9 +476,18 @@ internal partial class MainForm : Form
     /// Reports a successful apply in the status strip for a few seconds instead of a modal dialog.
     /// </summary>
     /// <param name="count">The number of changes that were applied.</param>
-    private void ShowApplied(int count)
+    private void ShowApplied(int count) =>
+        ShowTransientStatus($"Applied {count} {(count == 1 ? "change" : "changes")}");
+
+    private void OnConfigSaveFailed(object? sender, string message) => ShowTransientStatus(message);
+
+    /// <summary>
+    /// Shows a message in the status strip for a few seconds instead of a modal dialog.
+    /// </summary>
+    /// <param name="message">The message to show.</param>
+    private void ShowTransientStatus(string message)
     {
-        applyStatusLabel.Text = $"Applied {count} {(count == 1 ? "change" : "changes")}";
+        applyStatusLabel.Text = message;
         _applyStatusTimer.Stop();
         _applyStatusTimer.Start();
     }
@@ -485,6 +497,9 @@ internal partial class MainForm : Form
     /// </summary>
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
+        // The exit hook still saves after the window is gone; it must not touch a dead form.
+        _configService.SaveFailed -= OnConfigSaveFailed;
+
         _applyStatusTimer.Stop();
         base.OnFormClosed(e);
     }

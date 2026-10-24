@@ -31,7 +31,20 @@ internal sealed class TabFactory(IPathGridFactory gridFactory) : ITabFactory
         TabPage tab = new(currentTab.ToString());
 
         DataGridView grid = gridFactory.Create(currentTab);
+
+        TextBox filter = new()
+        {
+            Dock = DockStyle.Top,
+            PlaceholderText = "Filter by name or value (Ctrl+F)",
+            BorderStyle = BorderStyle.FixedSingle
+        };
+
+        // Fill first, then the top-docked filter: WinForms docks controls in reverse add order.
         tab.Controls.Add(grid);
+        tab.Controls.Add(filter);
+
+        gridFactory.AttachFilter(grid, filter);
+
         return tab;
     }
 }

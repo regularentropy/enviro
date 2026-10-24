@@ -274,6 +274,16 @@ internal partial class MainForm : Form
     /// </summary>
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
     {
+        if (keyData == (Keys.Control | Keys.F))
+        {
+            if (AllTab.SelectedTab?.Controls.OfType<TextBox>().FirstOrDefault() is { } filter)
+            {
+                filter.Focus();
+                filter.SelectAll();
+                return true;
+            }
+        }
+
         if (keyData == (Keys.Control | Keys.N) && addToolStripButton.Enabled)
         {
             addToolStripButton.PerformClick();
@@ -327,6 +337,8 @@ internal partial class MainForm : Form
             return;
         }
 
+        // A successful apply resets the workspace; start from the full list again.
+        _gridFactory.ClearFilters();
         ShowApplied(applied);
     }
 

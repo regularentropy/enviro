@@ -74,7 +74,7 @@ internal static class GridStyleHelper
 
     /// <summary>
     /// Sorts the specified DataGridView by the given column, toggling between ascending and descending order, and
-    /// updates the sort glyph accordingly.
+    /// updates the sort glyph accordingly. The selected model and the first displayed row survive the refill.
     /// </summary>
     /// <param name="grid">The DataGridView to be sorted. Must not be null and must contain the column specified by columnIndex.</param>
     /// <param name="bindingSource">The BindingSource providing the data for the DataGridView. Must contain a BindingList of EnvModel objects.</param>
@@ -90,6 +90,11 @@ internal static class GridStyleHelper
             ? SortOrder.Descending
             : SortOrder.Ascending;
 
+        // Capture the user's place before the bound list is cleared and refilled.
+        var selectedModel = grid.CurrentRow?.DataBoundItem as EnvModel;
+        var selectedColumn = grid.CurrentCell?.ColumnIndex ?? 0;
+        var firstDisplayedRow = grid.FirstDisplayedScrollingRowIndex;
+
         var currentList = (BindingList<EnvModel>)bindingSource.List;
         var sortedList = sortOrder == SortOrder.Ascending
             ? currentList.OrderBy(m => typeof(EnvModel).GetProperty(propertyName)?.GetValue(m)).ToList()
@@ -103,5 +108,49 @@ internal static class GridStyleHelper
             col.HeaderCell.SortGlyphDirection = SortOrder.None;
 
         column.HeaderCell.SortGlyphDirection = sortOrder;
+
+        RestorePosition(grid, selectedModel, selectedColumn, firstDisplayedRow);
+    }
+
+    /// <summary>
+    /// Re-selects the model that was selected before sorting and restores the scroll position when
+    /// both are still present. Rows hidden by a filter are skipped.
+    /// </summary>
+    /// <param name="grid">The grid that was refilled.</param>
+    /// <param name="selectedModel">The model that was selected before sorting, if any.</param>
+    /// <param name="columnIndex">The column index of the cell that had focus.</param>
+    /// <param name="firstDisplayedRow">The first displayed row index before sorting; negative when unknown.</param>
+    private static void RestorePosition(DataGridView grid, EnvModel? selectedModel, int columnIndex, int firstDisplayedRow)
+    {
+        if (selectedModel is not null && grid.Rows.Count > 0 && grid.Columns.Count > 0)
+        {
+            var rowIndex = FindRow(grid, selectedModel);
+
+            if (rowIndex >= 0 && grid.Rows[rowIndex].Visible)
+            {
+                grid.CurrentCell = grid[Math.Clamp(columnIndex, 0, grid.Columns.Count - 1), rowIndex];
+                grid.Rows[rowIndex].Selected = true;
+            }
+        }
+
+        if (firstDisplayedRow >= 0 && firstDisplayedRow < grid.Rows.Count && grid.Rows[firstDisplayedRow].Visible)
+            grid.FirstDisplayedScrollingRowIndex = firstDisplayedRow;
+    }
+
+    /// <summary>
+    /// Finds the row currently bound to the given model by reference.
+    /// </summary>
+    /// <param name="grid">The grid to search.</param>
+    /// <param name="model">The model instance to find.</param>
+    /// <returns>The row index, or -1 when the model is no longer in the grid.</returns>
+    private static int FindRow(DataGridView grid, EnvModel model)
+    {
+        foreach (DataGridViewRow row in grid.Rows)
+        {
+            if (ReferenceEquals(row.DataBoundItem, model))
+                return row.Index;
+        }
+
+        return -1;
     }
 }

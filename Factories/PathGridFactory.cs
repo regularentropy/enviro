@@ -23,6 +23,19 @@ internal interface IPathGridFactory
     /// corrupted-validation option is off.
     /// </summary>
     void RescanAll();
+
+    /// <summary>
+    /// Connects a filter box to the grid. The grid hides rows whose name and value do not contain
+    /// the filter text (case-insensitive) and re-applies the filter after every list change and sort.
+    /// </summary>
+    /// <param name="grid">The grid to filter.</param>
+    /// <param name="filter">The text box that supplies the filter text.</param>
+    void AttachFilter(DataGridView grid, TextBox filter);
+
+    /// <summary>
+    /// Clears every attached filter box, showing all rows again.
+    /// </summary>
+    void ClearFilters();
 }
 
 /// <summary>
@@ -36,6 +49,9 @@ internal sealed class PathGridFactory : IPathGridFactory
     private readonly IContextMenuFactory cf;
     private readonly IActionFactory<EnvModel> af;
     private readonly IConfigService _cs;
+
+    // Filter boxes are owned by the tab pages; the grids live for the lifetime of the window.
+    private readonly Dictionary<DataGridView, TextBox> _filters = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PathGridFactory"/> class.
@@ -117,12 +133,16 @@ internal sealed class PathGridFactory : IPathGridFactory
         grid.ColumnHeaderMouseClick += (s, e) =>
         {
             GridStyleHelper.SortGrid(grid, bindingSource, e.ColumnIndex);
+            ApplyFilter(grid);
         };
 
         // Corrupted variable detection. The subscription is always attached so turning the
         // option on never requires rebuilding the grid; the handler checks the config instead.
         bindingSource.ListChanged += (s, e) =>
         {
+            // Rows may have been added, removed or reordered; keep the filter applied.
+            ApplyFilter(grid);
+
             // index resets to -1 on change
             if (e.NewIndex < 0 || !_cs.Config.EnableCorruptedValidation)
                 return;
@@ -214,5 +234,93 @@ internal sealed class PathGridFactory : IPathGridFactory
 
         foreach (var env in ps.GetUserVariables()) MarkIfCorrupted(env);
         foreach (var env in ps.GetMachineVariables()) MarkIfCorrupted(env);
+    }
+
+    /// <summary>
+    /// Connects a filter box to the grid and applies the current text immediately.
+    /// </summary>
+    /// <param name="grid">The grid to filter.</param>
+    /// <param name="filter">The text box that supplies the filter text.</param>
+    public void AttachFilter(DataGridView grid, TextBox filter)
+    {
+        _filters[grid] = filter;
+        filter.TextChanged += (_, _) => ApplyFilter(grid);
+    }
+
+    /// <summary>
+    /// Clears every attached filter box, showing all rows again.
+    /// </summary>
+    public void ClearFilters()
+    {
+        foreach (var filter in _filters.Values)
+            filter.Clear();
+    }
+
+    /// <summary>
+    /// Hides the rows whose name and value do not contain the filter text. The bound list itself is
+    /// never touched, so sorting and change tracking are unaffected. The selection is kept on a
+    /// visible row; when nothing matches, the current cell is cleared.
+    /// </summary>
+    /// <param name="grid">The grid whose filter should be applied.</param>
+    private void ApplyFilter(DataGridView grid)
+    {
+        if (!_filters.TryGetValue(grid, out var filter))
+            return;
+
+        var text = filter.Text.Trim();
+
+        if (text.Length == 0)
+        {
+            foreach (DataGridViewRow row in grid.Rows)
+            {
+                if (!row.Visible)
+                    row.Visible = true;
+            }
+
+            return;
+        }
+
+        // Clear the current cell first so WinForms does not try to keep a row that is about to be hidden.
+        if (grid.CurrentRow is { DataBoundItem: EnvModel current } && !Matches(current, text))
+            grid.CurrentCell = null;
+
+        foreach (DataGridViewRow row in grid.Rows)
+        {
+            if (row.DataBoundItem is EnvModel model)
+                row.Visible = Matches(model, text);
+        }
+
+        EnsureVisibleSelection(grid);
+    }
+
+    /// <summary>
+    /// Checks whether a variable matches the filter text in its name or value.
+    /// </summary>
+    /// <param name="model">The variable to test.</param>
+    /// <param name="text">The trimmed, non-empty filter text.</param>
+    /// <returns>True when the name or value contains the text, ignoring case.</returns>
+    private static bool Matches(EnvModel model, string text) =>
+        model.Name.Contains(text, StringComparison.OrdinalIgnoreCase)
+        || model.Path.Contains(text, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Moves the selection to the first visible row when the previous one was filtered out.
+    /// </summary>
+    /// <param name="grid">The grid whose selection should be repaired.</param>
+    private static void EnsureVisibleSelection(DataGridView grid)
+    {
+        if (grid.CurrentRow is { Visible: true })
+            return;
+
+        var firstVisible = grid.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Visible);
+
+        if (firstVisible is null)
+        {
+            grid.CurrentCell = null;
+            return;
+        }
+
+        grid.CurrentCell = firstVisible.Cells[0];
+        firstVisible.Selected = true;
     }
 }

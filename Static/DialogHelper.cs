@@ -39,6 +39,26 @@ internal static class DialogHelper
         MessageBox.Show(message, title, MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
 
     /// <summary>
+    /// Asks what to do with unapplied changes when the window is closing.
+    /// </summary>
+    /// <param name="count">The number of changes that have not been applied.</param>
+    /// <returns>
+    /// <see cref="DialogResult.Yes"/> to apply and close,
+    /// <see cref="DialogResult.No"/> to discard and close, or
+    /// <see cref="DialogResult.Cancel"/> to stay open.
+    /// </returns>
+    public static DialogResult ShowUnsavedChanges(int count) =>
+        MessageBox.Show(
+            $"{count} {(count == 1 ? "change has" : "changes have")} not been applied.\n\n" +
+            "Yes: apply the changes and close\n" +
+            "No: discard the changes and close\n" +
+            "Cancel: keep working",
+            "Unapplied changes",
+            MessageBoxButtons.YesNoCancel,
+            MessageBoxIcon.Warning
+        );
+
+    /// <summary>
     /// Displays a simple message dialog without an icon.
     /// </summary>
     /// <param name="message">The message to display.</param>

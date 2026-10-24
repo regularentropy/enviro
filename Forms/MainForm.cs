@@ -23,6 +23,10 @@ internal partial class MainForm : Form
 
     private bool _revertingCorruptedToggle;
 
+    // Set when the process is deliberately torn down (elevation restart, discard, or
+    // apply-then-close) so the close guard does not ask a second time.
+    private bool _isRestarting;
+
     public MainForm(IEnvService es, IPathAdapter pa, IUpdateService us, ITabFactory tf, IServiceProvider sp, IConfigService cs, MetadataRepository mr)
     {
         InitializeComponent();
@@ -113,9 +117,54 @@ internal partial class MainForm : Form
         try
         {
             Process.Start(proc);
+            _isRestarting = true;
             Application.Exit();
         }
         catch { }
+    }
+
+    /// <summary>
+    /// Asks what to do with unapplied changes before the window closes.
+    /// </summary>
+    /// <remarks>
+    /// The close attempt is always cancelled first, so the window only closes once the
+    /// user's choice is known (and, for "Yes", only after the apply succeeds).
+    /// </remarks>
+    protected override async void OnFormClosing(FormClosingEventArgs e)
+    {
+        base.OnFormClosing(e);
+
+        if (e.Cancel || _isRestarting || !_envService.HasChanges())
+            return;
+
+        e.Cancel = true;
+
+        var pending = CountTotalPendingChanges();
+
+        switch (DialogHelper.ShowUnsavedChanges(pending))
+        {
+            case DialogResult.No:
+                _isRestarting = true;
+                Close();
+                return;
+
+            case DialogResult.Yes:
+                break;
+
+            default:
+                return;
+        }
+
+        // ApplyAsync completes synchronously today, so this runs to the end before the
+        // close is re-issued.
+        if (!await _pathAdapter.ApplyAsync())
+        {
+            ShowApplyFailure();
+            return;
+        }
+
+        _isRestarting = true;
+        Close();
     }
 
     private async void checkForUpdatesToolStripMenuItem_Click(object sender, EventArgs e)
@@ -155,15 +204,27 @@ internal partial class MainForm : Form
 
         if (!result)
         {
-            DialogHelper.ShowError(
-                $"Failed to apply changes.\n{DescribePendingChanges()}\nSome variables may already have been written.",
-                "Apply"
-            );
+            ShowApplyFailure();
             return;
         }
 
         DialogHelper.ShowMessage("Successfully applied changes", "Apply");
     }
+
+    /// <summary>
+    /// Reports a failed apply with the pending work that is still left behind.
+    /// </summary>
+    private void ShowApplyFailure() =>
+        DialogHelper.ShowError(
+            $"Failed to apply changes.\n{DescribePendingChanges()}\nSome variables may already have been written.",
+            "Apply"
+        );
+
+    /// <summary>
+    /// Counts the rows pending across both scopes.
+    /// </summary>
+    private int CountTotalPendingChanges() =>
+        CountPending(_envService.GetUserVariables()) + CountPending(_envService.GetMachineVariables());
 
     /// <summary>
     /// Summarises the rows still pending after a failed apply, with a count per scope.

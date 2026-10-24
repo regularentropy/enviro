@@ -66,6 +66,10 @@ internal partial class MainForm : Form
 
         elevationStatusLabel.Text = isAdmin ? "Administrator" : "Standard user";
 
+        // Legend for the grid's state-indicator column, available without using colour vision.
+        statusStrip1.ShowItemToolTips = true;
+        pendingStatusLabel.ToolTipText = "Row markers: + added · ~ modified · – deleted · ! corrupted value";
+
         AllTab.Controls.AddRange([
             _tabFactory.Create(EnvironmentalVariableType.User),
             _tabFactory.Create(EnvironmentalVariableType.Machine),

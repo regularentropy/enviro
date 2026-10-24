@@ -10,43 +10,67 @@ namespace enviro.Static;
 internal static class GridStyleHelper
 {
     /// <summary>
-    /// Applies color and font formatting to a DataGridView cell based on the environmental variable's state.
-    /// Added: Light green background
-    /// Modified: Light yellow background
-    /// Deleted: Light coral background with strikeout text
-    /// Unchanged: White background
-    /// Corrupted: Red background (overrides the state background)
+    /// Applies colour, selection colour and font formatting to a DataGridView cell based on the
+    /// environmental variable's state and corrupted-path overlay.
+    /// Added: light green, Modified: light yellow, Deleted: light coral with strikeout,
+    /// Unchanged: white, Corrupted: red (overrides the state background).
+    /// The selected row keeps a recognisable matching shade of the same colour with black text.
     /// </summary>
     /// <param name="e">The cell formatting event arguments.</param>
     /// <param name="model">The environmental variable model associated with the cell.</param>
     public static void ApplyStateFormatting(DataGridViewCellFormattingEventArgs e, EnvModel model)
     {
-        if (model.IsCorrupted)
-        {
-            e.CellStyle.BackColor = Color.Red;
-        }
-        else
-        {
-            switch (model.State)
-            {
-                case EnvironmentalVariableState.Added:
-                    e.CellStyle.BackColor = Color.LightGreen;
-                    break;
-                case EnvironmentalVariableState.Modified:
-                    e.CellStyle.BackColor = Color.LightYellow;
-                    break;
-                case EnvironmentalVariableState.Deleted:
-                    e.CellStyle.BackColor = Color.LightCoral;
-                    break;
-                case EnvironmentalVariableState.Unchanged:
-                    e.CellStyle.BackColor = Color.White;
-                    break;
-            }
-        }
+        var colors = GetStateColors(model);
+
+        e.CellStyle.BackColor = colors.Background;
+        e.CellStyle.SelectionBackColor = colors.SelectionBackground;
+        e.CellStyle.SelectionForeColor = Color.Black;
 
         if (model.State == EnvironmentalVariableState.Deleted)
             e.CellStyle.Font = new Font(e.CellStyle.Font, FontStyle.Strikeout);
     }
+
+    /// <summary>
+    /// Returns the single character that conveys the row's state in the indicator column.
+    /// </summary>
+    /// <param name="model">The environmental variable model for the row.</param>
+    /// <returns>
+    /// <c>!</c> for a corrupted value, otherwise <c>+</c> added, <c>~</c> modified,
+    /// <c>–</c> deleted, or an empty string for an unchanged row.
+    /// </returns>
+    public static string GetStateIndicator(EnvModel model) =>
+        model.IsCorrupted
+            ? "!"
+            : model.State switch
+            {
+                EnvironmentalVariableState.Added => "+",
+                EnvironmentalVariableState.Modified => "~",
+                EnvironmentalVariableState.Deleted => "–",
+                _ => string.Empty
+            };
+
+    /// <summary>
+    /// Maps a model to the pair of backgrounds used for normal and selected cells.
+    /// Both shades live here so they cannot drift apart.
+    /// </summary>
+    private static StateColors GetStateColors(EnvModel model)
+    {
+        if (model.IsCorrupted)
+            return new(Color.Red, Color.FromArgb(230, 96, 96));
+
+        return model.State switch
+        {
+            EnvironmentalVariableState.Added => new(Color.LightGreen, Color.FromArgb(112, 199, 112)),
+            EnvironmentalVariableState.Modified => new(Color.LightYellow, Color.FromArgb(229, 214, 128)),
+            EnvironmentalVariableState.Deleted => new(Color.LightCoral, Color.FromArgb(222, 133, 133)),
+            _ => new(Color.White, Color.FromArgb(214, 214, 214))
+        };
+    }
+
+    /// <summary>
+    /// The background and selection background for one row state.
+    /// </summary>
+    private readonly record struct StateColors(Color Background, Color SelectionBackground);
 
     /// <summary>
     /// Sorts the specified DataGridView by the given column, toggling between ascending and descending order, and

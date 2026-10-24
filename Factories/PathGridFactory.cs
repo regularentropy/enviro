@@ -30,6 +30,8 @@ internal interface IPathGridFactory
 /// </summary>
 internal sealed class PathGridFactory : IPathGridFactory
 {
+    private const string StateIndicatorColumnName = "StateIndicator";
+
     private readonly IEnvService ps;
     private readonly IContextMenuFactory cf;
     private readonly IActionFactory<EnvModel> af;
@@ -76,6 +78,12 @@ internal sealed class PathGridFactory : IPathGridFactory
             AllowUserToDeleteRows = false,
         };
 
+        // Comfortable row density that follows the font/DPI size instead of a fixed pixel value.
+        grid.RowTemplate.Height = grid.Font.Height + 12;
+
+        grid.ColumnHeadersDefaultCellStyle.Font = new Font(grid.Font, FontStyle.Bold);
+        grid.ColumnHeadersDefaultCellStyle.Padding = new Padding(4, 2, 4, 2);
+
 #if DEBUG
         grid.AutoGenerateColumns = true;
 #else
@@ -83,6 +91,15 @@ internal sealed class PathGridFactory : IPathGridFactory
 #endif
 
         grid.Columns.AddRange([
+            new DataGridViewTextBoxColumn()
+            {
+                Name = StateIndicatorColumnName,
+                HeaderText = string.Empty,
+                AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
+                Width = 28,
+                SortMode = DataGridViewColumnSortMode.NotSortable,
+                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter }
+            },
             new DataGridViewTextBoxColumn() { Name="NameText", HeaderText = "Name", DataPropertyName = nameof(EnvModel.Name), SortMode = DataGridViewColumnSortMode.Automatic},
             new DataGridViewTextBoxColumn() { Name="PathText", HeaderText = "Value", DataPropertyName = nameof(EnvModel.Path), SortMode = DataGridViewColumnSortMode.Automatic }
         ]);
@@ -160,9 +177,16 @@ internal sealed class PathGridFactory : IPathGridFactory
 
         grid.CellFormatting += (s, e) =>
             {
-                if (grid.Rows[e.RowIndex].DataBoundItem is EnvModel pm)
+                if (e.RowIndex < 0 || e.ColumnIndex < 0 || grid.Rows[e.RowIndex].DataBoundItem is not EnvModel pm)
+                    return;
+
+                GridStyleHelper.ApplyStateFormatting(e, pm);
+
+                // The indicator column is unbound: render the state glyph from the model.
+                if (grid.Columns[e.ColumnIndex].Name == StateIndicatorColumnName)
                 {
-                    GridStyleHelper.ApplyStateFormatting(e, pm);
+                    e.Value = GridStyleHelper.GetStateIndicator(pm);
+                    e.FormattingApplied = true;
                 }
             };
 

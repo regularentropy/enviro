@@ -182,17 +182,11 @@
   <data name="toolStrip1.Text" xml:space="preserve">
     <value>toolStrip1</value>
   </data>
-  <data name="addToolStripButton.Size" type="System.Drawing.Size, System.Drawing">
-    <value>34, 22</value>
-  </data>
   <data name="addToolStripButton.Text" xml:space="preserve">
     <value>Add</value>
   </data>
   <data name="addToolStripButton.ToolTipText" xml:space="preserve">
     <value>Create a new variable (Ctrl+N)</value>
-  </data>
-  <data name="editToolStripButton.Size" type="System.Drawing.Size, System.Drawing">
-    <value>34, 22</value>
   </data>
   <data name="editToolStripButton.Text" xml:space="preserve">
     <value>Edit</value>
@@ -200,26 +194,17 @@
   <data name="editToolStripButton.ToolTipText" xml:space="preserve">
     <value>Edit the selected variable (F2)</value>
   </data>
-  <data name="deleteToolStripButton.Size" type="System.Drawing.Size, System.Drawing">
-    <value>42, 22</value>
-  </data>
   <data name="deleteToolStripButton.Text" xml:space="preserve">
     <value>Delete</value>
   </data>
   <data name="deleteToolStripButton.ToolTipText" xml:space="preserve">
     <value>Delete the selected variable (Del)</value>
   </data>
-  <data name="refreshToolStripButton.Size" type="System.Drawing.Size, System.Drawing">
-    <value>49, 22</value>
-  </data>
   <data name="refreshToolStripButton.Text" xml:space="preserve">
     <value>Refresh</value>
   </data>
   <data name="refreshToolStripButton.ToolTipText" xml:space="preserve">
     <value>Reload both scopes from Windows (F5)</value>
-  </data>
-  <data name="applyToolStripButton.Size" type="System.Drawing.Size, System.Drawing">
-    <value>38, 22</value>
   </data>
   <data name="applyToolStripButton.Text" xml:space="preserve">
     <value>Apply</value>

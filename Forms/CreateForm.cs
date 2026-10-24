@@ -47,6 +47,9 @@ internal partial class CreateForm : AbstractEntryForm
             var existing = _envService.GetModelByName(name, _t);
             if (existing != null)
             {
+                if (existing.State == EnvironmentalVariableState.Deleted)
+                    _envService.RestoreItem(existing);
+
                 _envService.UpdatePath(existing, path, _t);
                 DialogHelper.ShowInfo("Variable successfully updated", "Action");
             }

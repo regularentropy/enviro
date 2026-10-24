@@ -29,6 +29,21 @@ internal partial class EditForm : AbstractEntryForm
         var newName = nameTextBox.Text.Trim();
         var newPath = pathTextBox.Text.Trim();
 
+        if (!ValidationHelper.ValidateEnvironmentVariableInput(newName, newPath))
+            return;
+
+        if (ValidationHelper.ContainsInvalidCharacters(newName))
+        {
+            DialogHelper.ShowError("Name cannot contain '='", "Validation");
+            return;
+        }
+
+        if (_pm_ref.State == EnvironmentalVariableState.Deleted)
+        {
+            DialogHelper.ShowError("Restore the variable before editing it.", "Validation");
+            return;
+        }
+
         bool nameChanged = newName != _pm_ref.Name;
         bool pathChanged = newPath != _pm_ref.Path;
 
@@ -38,20 +53,16 @@ internal partial class EditForm : AbstractEntryForm
             return;
         }
 
-        if (nameChanged)
-        {
-            _envService.Rename(_pm_ref.Name, newName, _t);
+        var target = nameChanged ? _envService.TryRename(_pm_ref.Name, newName, _t) : _pm_ref;
 
-            if (pathChanged)
-            {
-                var renamedModel = _envService.GetModelByName(newName, _t)!;
-                _envService.UpdatePath(renamedModel, newPath, _t);
-            }
-        }
-        else if (pathChanged)
+        if (target == null)
         {
-            _envService.UpdatePath(_pm_ref, newPath, _t);
+            DialogHelper.ShowError($"Cannot rename to '{newName}': the name is already in use.", "Validation");
+            return;
         }
+
+        if (pathChanged)
+            _envService.UpdatePath(target, newPath, _t);
 
         this.Close();
     }

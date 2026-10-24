@@ -83,12 +83,14 @@ internal interface IEnvService
     void UpdatePath(EnvModel model, string newPath, EnvironmentalVariableType t);
 
     /// <summary>
-    /// Renames an environmental variable.
+    /// Renames an environmental variable. Rejects blank names, unknown source models
+    /// and collisions with another variable, leaving every model untouched.
     /// </summary>
     /// <param name="oldName">The current name.</param>
     /// <param name="newName">The new name.</param>
     /// <param name="t">The type of environmental variable (User or Machine).</param>
-    void Rename(string oldName, string newName, EnvironmentalVariableType t);
+    /// <returns>The model that now holds the new name, or null when the rename was rejected.</returns>
+    EnvModel? TryRename(string oldName, string newName, EnvironmentalVariableType t);
 }
 
 /// <summary>
@@ -181,6 +183,9 @@ internal sealed class EnvService : IEnvService
     /// <param name="t">The type of environmental variable (User or Machine).</param>
     public void UpdatePath(EnvModel model, string newPath, EnvironmentalVariableType t)
     {
+        if (model.State == EnvironmentalVariableState.Deleted)
+            return;
+
         model.Path = newPath;
 
         if (model.State != EnvironmentalVariableState.Added)
@@ -193,23 +198,25 @@ internal sealed class EnvService : IEnvService
     /// <param name="oldName">The current name.</param>
     /// <param name="newName">The new name.</param>
     /// <param name="t">The type of environmental variable (User or Machine).</param>
-    public void Rename(string oldName, string newName, EnvironmentalVariableType t)
+    public EnvModel? TryRename(string oldName, string newName, EnvironmentalVariableType t)
     {
         if (string.IsNullOrWhiteSpace(newName))
-            return;
+            return null;
 
-        var foundModel = GetModelByName(oldName ?? string.Empty, t);
+        var foundModel = GetModelByName(oldName, t);
 
         if (foundModel == null)
-            return;
+            return null;
 
-        if (GetModelByName(newName, t) != null && GetModelByName(newName, t) != foundModel)
-            return;
+        var target = GetModelByName(newName, t);
+
+        if (target != null && target != foundModel)
+            return null;
 
         if (foundModel.State == EnvironmentalVariableState.Added)
         {
             foundModel.Name = newName;
-            return;
+            return foundModel;
         }
 
         foundModel.State = EnvironmentalVariableState.Deleted;
@@ -223,6 +230,8 @@ internal sealed class EnvService : IEnvService
         };
 
         GetVariablesByType(t).Add(newModel);
+
+        return newModel;
     }
 
     /// <summary>
@@ -250,7 +259,7 @@ internal sealed class EnvService : IEnvService
     public bool Contains(EnvModel pathModel, EnvironmentalVariableType t)
     {
         var array = GetVariablesByType(t);
-        return array.Any(c => c.Name == pathModel.Name);
+        return array.Any(c => string.Equals(c.Name, pathModel.Name, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
@@ -278,7 +287,7 @@ internal sealed class EnvService : IEnvService
     public EnvModel? GetModelByName(string name, EnvironmentalVariableType t)
     {
         var array = GetVariablesByType(t);
-        return array.FirstOrDefault(s => s.Name == name);
+        return array.FirstOrDefault(s => string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

@@ -81,8 +81,8 @@ internal partial class MainForm : Form
         foreach (var grid in AllTab.TabPages.Cast<TabPage>().SelectMany(t => t.Controls.OfType<DataGridView>()))
             grid.SelectionChanged += (_, _) => UpdateActionState();
 
-        _envService.GetUserVariables().ListChanged += (_, _) => UpdateActionState();
-        _envService.GetMachineVariables().ListChanged += (_, _) => UpdateActionState();
+        _envService.User.Rows.ListChanged += (_, _) => UpdateActionState();
+        _envService.Machine.Rows.ListChanged += (_, _) => UpdateActionState();
         UpdateActionState();
 
         var corruptedVarsButton = new ToolStripMenuItem("Check for corrupted variables")
@@ -355,11 +355,9 @@ internal partial class MainForm : Form
     /// </summary>
     private void UpdateStatusStrip()
     {
-        var bundle = _envService.GetPathModelBundle();
-
-        var added = StateCounter.CountByState(bundle, EnvironmentalVariableState.Added);
-        var modified = StateCounter.CountByState(bundle, EnvironmentalVariableState.Modified);
-        var deleted = StateCounter.CountByState(bundle, EnvironmentalVariableState.Deleted);
+        var added = CountByState(EnvironmentalVariableState.Added);
+        var modified = CountByState(EnvironmentalVariableState.Modified);
+        var deleted = CountByState(EnvironmentalVariableState.Deleted);
         var total = added + modified + deleted;
 
         pendingStatusLabel.Text = total == 0
@@ -368,7 +366,8 @@ internal partial class MainForm : Form
 
         if (_configService.Config.EnableCorruptedValidation)
         {
-            corruptedStatusLabel.Text = $"{StateCounter.CountCorrupted(bundle)} corrupted";
+            var corrupted = StateCounter.CountCorrupted(_envService.User) + StateCounter.CountCorrupted(_envService.Machine);
+            corruptedStatusLabel.Text = $"{corrupted} corrupted";
             corruptedStatusLabel.Visible = true;
         }
         else
@@ -376,6 +375,14 @@ internal partial class MainForm : Form
             corruptedStatusLabel.Visible = false;
         }
     }
+
+    /// <summary>
+    /// Counts the rows in one edit state across both scopes.
+    /// </summary>
+    /// <param name="state">The state to count.</param>
+    /// <returns>The number of matching rows in the user and machine scopes.</returns>
+    private int CountByState(EnvironmentalVariableState state) =>
+        StateCounter.CountByState(_envService.User, state) + StateCounter.CountByState(_envService.Machine, state);
 
     private void CreateEntryClicked(object? sender, EventArgs e)
     {
@@ -534,7 +541,7 @@ internal partial class MainForm : Form
     /// Counts the rows pending across both scopes.
     /// </summary>
     private int CountTotalPendingChanges() =>
-        CountPending(_envService.GetUserVariables()) + CountPending(_envService.GetMachineVariables());
+        CountPending(_envService.User) + CountPending(_envService.Machine);
 
     /// <summary>
     /// Summarises the rows still pending after a failed apply, with a count per scope.
@@ -542,8 +549,8 @@ internal partial class MainForm : Form
     /// <returns>A sentence such as "4 changes are still pending (3 User, 1 Machine)."</returns>
     private string DescribePendingChanges()
     {
-        var userCount = CountPending(_envService.GetUserVariables());
-        var machineCount = CountPending(_envService.GetMachineVariables());
+        var userCount = CountPending(_envService.User);
+        var machineCount = CountPending(_envService.Machine);
         var total = userCount + machineCount;
 
         if (total == 0)
@@ -561,6 +568,6 @@ internal partial class MainForm : Form
         return $"{total} {noun} still pending ({string.Join(", ", scopes)}).";
     }
 
-    private static int CountPending(BindingList<EnvModel> variables) =>
-        variables.Count(v => v.State != EnvironmentalVariableState.Unchanged);
+    private static int CountPending(IEnvScope scope) =>
+        scope.Rows.OfType<EnvModel>().Count(v => v.State != EnvironmentalVariableState.Unchanged);
 }

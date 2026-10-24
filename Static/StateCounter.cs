@@ -1,4 +1,5 @@
 using enviro.Models;
+using enviro.Services;
 
 namespace enviro.Static;
 
@@ -8,19 +9,19 @@ namespace enviro.Static;
 internal static class StateCounter
 {
     /// <summary>
-    /// Counts the rows in the given edit state across both scopes.
+    /// Counts the rows of one scope in the given edit state.
     /// </summary>
-    /// <param name="bundle">The user + machine lists to inspect.</param>
+    /// <param name="scope">The scope whose rows are counted.</param>
     /// <param name="state">The state to count.</param>
     /// <returns>The number of matching rows.</returns>
-    public static int CountByState(EnvModelBundle bundle, EnvironmentalVariableState state) =>
-        bundle.User.Concat(bundle.Machine).Count(v => v.State == state);
+    public static int CountByState(IEnvScope scope, EnvironmentalVariableState state) =>
+        scope.Rows.OfType<EnvModel>().Count(v => v.State == state);
 
     /// <summary>
-    /// Counts the rows whose corrupted-path overlay is set across both scopes.
+    /// Counts the rows of one scope whose corrupted-path overlay is set.
     /// </summary>
-    /// <param name="bundle">The user + machine lists to inspect.</param>
+    /// <param name="scope">The scope whose rows are counted.</param>
     /// <returns>The number of rows marked as corrupted.</returns>
-    public static int CountCorrupted(EnvModelBundle bundle) =>
-        bundle.User.Concat(bundle.Machine).Count(v => v.IsCorrupted);
+    public static int CountCorrupted(IEnvScope scope) =>
+        scope.Rows.OfType<EnvModel>().Count(v => v.IsCorrupted);
 }

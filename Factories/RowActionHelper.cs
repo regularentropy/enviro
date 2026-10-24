@@ -40,10 +40,10 @@ internal static class RowActionHelper
     }
 
     /// <summary>
-    /// Removes the grid's current row, through the service so state tracking stays intact.
+    /// Removes the grid's current row, through the scope so state tracking stays intact.
     /// </summary>
     /// <param name="grid">The grid that holds the row and determines the scope.</param>
-    /// <param name="envService">The store that owns the rows.</param>
+    /// <param name="envService">The store that owns the scopes.</param>
     public static void Delete(DataGridView grid, IEnvService envService)
     {
         if (ControlHelper.GetTabType(grid) is not { } scope || !AdminChecker.ValidateTab(grid))
@@ -52,6 +52,6 @@ internal static class RowActionHelper
         var model = ControlHelper.GetCurrentModel(grid);
 
         if (model is not null)
-            envService.RemoveEntry(model, scope);
+            envService.GetScope(scope).Delete(model);
     }
 }

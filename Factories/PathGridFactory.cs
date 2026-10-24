@@ -1,7 +1,6 @@
 ﻿using enviro.Models;
 using enviro.Services;
 using enviro.Static;
-using System.ComponentModel;
 
 namespace enviro.Factories;
 
@@ -120,19 +119,16 @@ internal sealed class PathGridFactory : IPathGridFactory
             new DataGridViewTextBoxColumn() { Name="PathText", HeaderText = "Value", DataPropertyName = nameof(EnvModel.Path), SortMode = DataGridViewColumnSortMode.Automatic }
         ]);
 
-        var bundle = ps.GetPathModelBundle();
+        var scope = ps.GetScope(tab);
 
-        var bindingSource = new BindingSource
-        {
-            DataSource = bundle,
-            DataMember = tab == EnvironmentalVariableType.User ? nameof(EnvModelBundle.User) : nameof(EnvModelBundle.Machine)
-        };
+        // The grid binds to the service-owned rows, so every change arrives as a ListChanged event.
+        var bindingSource = new BindingSource { DataSource = scope.Rows };
 
         grid.DataSource = bindingSource;
 
         grid.ColumnHeaderMouseClick += (s, e) =>
         {
-            GridStyleHelper.SortGrid(grid, bindingSource, e.ColumnIndex);
+            GridStyleHelper.SortGrid(grid, scope, e.ColumnIndex);
             ApplyFilter(grid);
         };
 
@@ -154,9 +150,7 @@ internal sealed class PathGridFactory : IPathGridFactory
         // Mark the rows already bound to this grid when validation is enabled.
         if (_cs.Config.EnableCorruptedValidation)
         {
-            var models = tab == EnvironmentalVariableType.User ? bundle.User : bundle.Machine;
-
-            foreach (var env in models) MarkIfCorrupted(env);
+            foreach (var env in scope.Rows.OfType<EnvModel>()) MarkIfCorrupted(env);
         }
 
         grid.CellMouseDoubleClick += (s, e) =>
@@ -225,15 +219,16 @@ internal sealed class PathGridFactory : IPathGridFactory
     /// </summary>
     public void RescanAll()
     {
-        if (!_cs.Config.EnableCorruptedValidation)
-        {
-            foreach (var env in ps.GetUserVariables()) env.IsCorrupted = false;
-            foreach (var env in ps.GetMachineVariables()) env.IsCorrupted = false;
-            return;
-        }
+        IEnvScope[] scopes = [ps.User, ps.Machine];
 
-        foreach (var env in ps.GetUserVariables()) MarkIfCorrupted(env);
-        foreach (var env in ps.GetMachineVariables()) MarkIfCorrupted(env);
+        foreach (var scope in scopes)
+        {
+            foreach (var env in scope.Rows.OfType<EnvModel>())
+            {
+                if (_cs.Config.EnableCorruptedValidation) MarkIfCorrupted(env);
+                else env.IsCorrupted = false;
+            }
+        }
     }
 
     /// <summary>

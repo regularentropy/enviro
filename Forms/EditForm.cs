@@ -11,14 +11,12 @@ namespace enviro.Forms;
 internal partial class EditForm : AbstractEntryForm
 {
     private readonly EnvModel _pm_ref;
-    private readonly EnvironmentalVariableType _t;
     private readonly PathEntriesControl _entriesControl;
     private bool _entriesMode;
 
-    public EditForm(IEnvService ps, EnvModel pm, EnvironmentalVariableType t) : base(ps)
+    public EditForm(IEnvScope scope, EnvModel pm) : base(scope)
     {
         _pm_ref = pm;
-        _t = t;
 
         nameTextBox.Text = pm.Name;
         pathTextBox.Text = pm.Path;
@@ -111,7 +109,7 @@ internal partial class EditForm : AbstractEntryForm
             return;
         }
 
-        var target = nameChanged ? _envService.TryRename(_pm_ref.Name, newName, _t) : _pm_ref;
+        var target = nameChanged ? _scope.Rename(_pm_ref.Name, newName) : _pm_ref;
 
         if (target == null)
         {
@@ -120,7 +118,7 @@ internal partial class EditForm : AbstractEntryForm
         }
 
         if (pathChanged)
-            _envService.UpdatePath(target, newPath, _t);
+            _scope.Update(target, newPath);
 
         this.Close();
     }

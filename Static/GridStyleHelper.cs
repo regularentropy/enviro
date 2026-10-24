@@ -1,4 +1,5 @@
 using enviro.Models;
+using enviro.Services;
 using System.ComponentModel;
 using System.Data;
 
@@ -74,12 +75,13 @@ internal static class GridStyleHelper
 
     /// <summary>
     /// Sorts the specified DataGridView by the given column, toggling between ascending and descending order, and
-    /// updates the sort glyph accordingly. The selected model and the first displayed row survive the refill.
+    /// updates the sort glyph accordingly. The refill belongs to the scope, so the selected model and the first
+    /// displayed row survive it.
     /// </summary>
     /// <param name="grid">The DataGridView to be sorted. Must not be null and must contain the column specified by columnIndex.</param>
-    /// <param name="bindingSource">The BindingSource providing the data for the DataGridView. Must contain a BindingList of EnvModel objects.</param>
+    /// <param name="scope">The scope whose rows the grid displays.</param>
     /// <param name="columnIndex">The zero-based index of the column to sort by. Must refer to a valid column in the grid.</param>
-    public static void SortGrid(DataGridView grid, BindingSource bindingSource, int columnIndex)
+    public static void SortGrid(DataGridView grid, IEnvScope scope, int columnIndex)
     {
         var column = grid.Columns[columnIndex];
         var propertyName = column.DataPropertyName;
@@ -95,14 +97,9 @@ internal static class GridStyleHelper
         var selectedColumn = grid.CurrentCell?.ColumnIndex ?? 0;
         var firstDisplayedRow = grid.FirstDisplayedScrollingRowIndex;
 
-        var currentList = (BindingList<EnvModel>)bindingSource.List;
-        var sortedList = sortOrder == SortOrder.Ascending
-            ? currentList.OrderBy(m => typeof(EnvModel).GetProperty(propertyName)?.GetValue(m)).ToList()
-            : currentList.OrderByDescending(m => typeof(EnvModel).GetProperty(propertyName)?.GetValue(m)).ToList();
-
-        currentList.Clear();
-        foreach (var item in sortedList)
-            currentList.Add(item);
+        scope.Sort(
+            propertyName,
+            sortOrder == SortOrder.Ascending ? ListSortDirection.Ascending : ListSortDirection.Descending);
 
         foreach (DataGridViewColumn col in grid.Columns)
             col.HeaderCell.SortGlyphDirection = SortOrder.None;

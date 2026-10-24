@@ -58,10 +58,17 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
         // that would only be rejected on click.
         bool canMutate = AdminChecker.CanMutate(grid);
 
-        if (pm.State == EnvironmentalVariableState.Deleted)
-            cms.Items.Add("Restore", null, (_, _) => RestoreItem(pm));
-        else if (pm.State == EnvironmentalVariableState.Modified)
-            cms.Items.Add("Reset", null, (_, _) => ResetItem(pm));
+        // Restore/Reset are ungated in-memory operations, but they still belong to the grid's scope;
+        // a control without one denies them like every other mutation.
+        var scope = ControlHelper.GetTabType(grid) is { } type ? _pathService.GetScope(type) : null;
+
+        if (scope is not null)
+        {
+            if (pm.State == EnvironmentalVariableState.Deleted)
+                cms.Items.Add("Restore", null, (_, _) => scope.Restore(pm));
+            else if (pm.State == EnvironmentalVariableState.Modified)
+                cms.Items.Add("Reset", null, (_, _) => scope.Reset(pm));
+        }
 
         if (canMutate)
         {
@@ -106,16 +113,4 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
         var model = ControlHelper.GetCurrentModel(g);
         ClipboardHelper.CopyModelProperty(model, selector);
     }
-
-    /// <summary>
-    /// Restores a deleted environmental variable.
-    /// </summary>
-    /// <param name="pm">The model to restore.</param>
-    private void RestoreItem(EnvModel pm) => _pathService.RestoreItem(pm);
-
-    /// <summary>
-    /// Resets a modified environmental variable to its original state.
-    /// </summary>
-    /// <param name="pm">The model to reset.</param>
-    private void ResetItem(EnvModel pm) => _pathService.ResetItem(pm);
 }

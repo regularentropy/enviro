@@ -9,12 +9,8 @@ namespace enviro.Forms;
 /// </summary>
 internal partial class CreateForm : AbstractEntryForm
 {
-    private readonly EnvironmentalVariableType _t;
-
-    public CreateForm(IEnvService es, EnvironmentalVariableType t) : base(es)
+    public CreateForm(IEnvScope scope) : base(scope)
     {
-        _t = t;
-
         this.Text = "Create";
         addButton.Text = "Create";
 
@@ -28,17 +24,15 @@ internal partial class CreateForm : AbstractEntryForm
         if (!ValidationHelper.ValidateEnvironmentVariableInput(name, path))
             return;
 
-        var pathModel = new EnvModel { Name = name, Path = path };
-
-        if (!_envService.Contains(pathModel, _t))
+        if (!_scope.Contains(name))
         {
-            _envService.AddEntry(pathModel, _t);
+            _scope.Add(new EnvModel { Name = name, Path = path });
             this.Close();
 
             return;
         }
 
-        var existing = _envService.GetModelByName(name, _t);
+        var existing = _scope.GetByName(name);
         if (existing is null)
             return;
 
@@ -47,9 +41,9 @@ internal partial class CreateForm : AbstractEntryForm
         if (res == DialogResult.OK)
         {
             if (existing.State == EnvironmentalVariableState.Deleted)
-                _envService.RestoreItem(existing);
+                _scope.Restore(existing);
 
-            _envService.UpdatePath(existing, path, _t);
+            _scope.Update(existing, path);
             this.Close();
         }
     }

@@ -1,7 +1,6 @@
 ﻿using enviro.Models;
 using enviro.Services;
 using enviro.Static;
-using System.ComponentModel;
 
 /// <summary>
 /// Adapter interface for applying environmental variable changes to the system.
@@ -52,7 +51,7 @@ internal sealed class EnvAdapter(IEnvService _es, IAppLog _log) : IPathAdapter
     /// <returns>The rows written per scope, and the row that stopped the run if one threw.</returns>
     public Task<ApplyResult> ApplyAsync()
     {
-        var (userApplied, userFailed, userError) = ApplyAndClean(EnvironmentalVariableType.User, _es.GetUserVariables());
+        var (userApplied, userFailed, userError) = ApplyAndClean(_es.User);
 
         if (userFailed is not null)
             return Task.FromResult(new ApplyResult(userApplied, 0, EnvironmentalVariableType.User, userFailed, userError));
@@ -61,7 +60,7 @@ internal sealed class EnvAdapter(IEnvService _es, IAppLog _log) : IPathAdapter
 
         if (AdminChecker.IsAdmin())
         {
-            var machine = ApplyAndClean(EnvironmentalVariableType.Machine, _es.GetMachineVariables());
+            var machine = ApplyAndClean(_es.Machine);
             machineApplied = machine.Applied;
 
             if (machine.Failed is not null)
@@ -78,13 +77,11 @@ internal sealed class EnvAdapter(IEnvService _es, IAppLog _log) : IPathAdapter
     /// Writes every pending row of one scope, cleaning each row as soon as it is written.
     /// Stops at the first row that throws.
     /// </summary>
-    /// <param name="t">The type of environmental variable (User or Machine).</param>
-    /// <param name="models">The collection of models to process.</param>
+    /// <param name="scope">The scope whose pending rows are written.</param>
     /// <returns>The number of rows written, plus the row and error message that stopped the run (if any).</returns>
-    private (int Applied, EnvModel? Failed, string? Error) ApplyAndClean(
-        EnvironmentalVariableType t, BindingList<EnvModel> models)
+    private (int Applied, EnvModel? Failed, string? Error) ApplyAndClean(IEnvScope scope)
     {
-        var target = EnvTypeConverter.ToTarget(t);
+        var target = EnvTypeConverter.ToTarget(scope.Type);
         var applied = 0;
 
         // Deleted first, so a variable that is going away is removed before new names are written.
@@ -98,7 +95,7 @@ internal sealed class EnvAdapter(IEnvService _es, IAppLog _log) : IPathAdapter
         foreach (var state in order)
         {
             // Snapshot: a written deleted row leaves the list while this loop runs.
-            foreach (var model in models.Where(m => m.State == state).ToList())
+            foreach (var model in scope.Rows.OfType<EnvModel>().Where(m => m.State == state).ToList())
             {
                 try
                 {
@@ -114,34 +111,15 @@ internal sealed class EnvAdapter(IEnvService _es, IAppLog _log) : IPathAdapter
                 }
                 catch (Exception ex)
                 {
-                    _log.Error($"Could not write {t} variable \"{model.Name}\".", ex);
+                    _log.Error($"Could not write {scope.Type} variable \"{model.Name}\".", ex);
                     return (applied, model, ex.Message);
                 }
 
-                MarkApplied(models, model, state);
+                scope.MarkApplied(model, state);
                 applied++;
             }
         }
 
         return (applied, null, null);
-    }
-
-    /// <summary>
-    /// Sets a written row back to <c>Unchanged</c> and syncs its baseline; a deleted row leaves the list.
-    /// </summary>
-    /// <param name="models">The collection the row belongs to.</param>
-    /// <param name="model">The row that was just written.</param>
-    /// <param name="appliedState">The state the row had when it was written.</param>
-    private static void MarkApplied(BindingList<EnvModel> models, EnvModel model, EnvironmentalVariableState appliedState)
-    {
-        if (appliedState == EnvironmentalVariableState.Deleted)
-        {
-            models.Remove(model);
-            return;
-        }
-
-        model.State = EnvironmentalVariableState.Unchanged;
-        model.OriginalName = model.Name;
-        model.OriginalPath = model.Path;
     }
 }

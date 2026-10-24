@@ -13,10 +13,5 @@ public enum EnvironmentalVariableType
     /// <summary>
     /// Machine-level (system-wide) environmental variable.
     /// </summary>
-    Machine,
-
-    /// <summary>
-    /// All environmental variables (both User and Machine).
-    /// </summary>
-    All
+    Machine
 }

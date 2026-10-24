@@ -16,15 +16,15 @@ internal abstract partial class AbstractEntryForm : Form
     /// </summary>
     protected const int EntriesModeHeight = 500;
 
-    protected readonly IEnvService _envService;
+    protected readonly IEnvScope _scope;
 
     private readonly ContextMenuStrip _browseMenu;
 
-    public AbstractEntryForm(IEnvService es)
+    public AbstractEntryForm(IEnvScope scope)
     {
         InitializeComponent();
 
-        _envService = es;
+        _scope = scope;
 
         nameTextBox.TextChanged += TextBox_Changed;
         pathTextBox.TextChanged += TextBox_Changed;

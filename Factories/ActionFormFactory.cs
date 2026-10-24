@@ -45,11 +45,8 @@ internal class EntryFormFactory(IServiceProvider _sp) : IActionFactory<EnvModel>
     /// </summary>
     /// <param name="t">The type of environmental variable (User or Machine).</param>
     /// <returns>A CreateForm instance.</returns>
-    public Form Create(EnvironmentalVariableType t)
-    {
-        var envService = _sp.GetRequiredService<IEnvService>();
-        return new CreateForm(envService, t);
-    }
+    public Form Create(EnvironmentalVariableType t) =>
+        new CreateForm(_sp.GetRequiredService<IEnvService>().GetScope(t));
 
     /// <summary>
     /// Creates a new form for editing an existing environmental variable.
@@ -57,9 +54,6 @@ internal class EntryFormFactory(IServiceProvider _sp) : IActionFactory<EnvModel>
     /// <param name="model">The environmental variable model to edit.</param>
     /// <param name="t">The type of environmental variable (User or Machine).</param>
     /// <returns>An EditForm instance.</returns>
-    public Form Create(EnvModel model, EnvironmentalVariableType t)
-    {
-        var envService = _sp.GetRequiredService<IEnvService>();
-        return new EditForm(envService, model, t);
-    }
+    public Form Create(EnvModel model, EnvironmentalVariableType t) =>
+        new EditForm(_sp.GetRequiredService<IEnvService>().GetScope(t), model);
 }

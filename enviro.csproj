@@ -11,6 +11,7 @@
 	<Product>Enviro</Product>
 	<AssemblyName>Enviro</AssemblyName>
 	<Version>0.8.1</Version>
+	<Copyright>© 2026 regularentropy</Copyright>
 	  
 	<SignAssembly>True</SignAssembly>
 	  

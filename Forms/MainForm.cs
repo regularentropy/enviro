@@ -129,7 +129,7 @@ internal partial class MainForm : Form
     private void AboutButtonClicked(object sender, EventArgs e)
     {
         var form = _aboutFormFactory();
-        form.ShowDialog();
+        form.ShowDialog(this);
     }
 
     /// <summary>

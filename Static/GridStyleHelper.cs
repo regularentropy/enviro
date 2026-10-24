@@ -15,31 +15,37 @@ internal static class GridStyleHelper
     /// Modified: Light yellow background
     /// Deleted: Light coral background with strikeout text
     /// Unchanged: White background
-    /// Corrupted: Red background
+    /// Corrupted: Red background (overrides the state background)
     /// </summary>
     /// <param name="e">The cell formatting event arguments.</param>
     /// <param name="model">The environmental variable model associated with the cell.</param>
     public static void ApplyStateFormatting(DataGridViewCellFormattingEventArgs e, EnvModel model)
     {
-        switch (model.State)
+        if (model.IsCorrupted)
         {
-            case EnvironmentalVariableState.Added:
-                e.CellStyle.BackColor = Color.LightGreen;
-                break;
-            case EnvironmentalVariableState.Modified:
-                e.CellStyle.BackColor = Color.LightYellow;
-                break;
-            case EnvironmentalVariableState.Deleted:
-                e.CellStyle.BackColor = Color.LightCoral;
-                e.CellStyle.Font = new Font(e.CellStyle.Font, FontStyle.Strikeout);
-                break;
-            case EnvironmentalVariableState.Unchanged:
-                e.CellStyle.BackColor = Color.White;
-                break;
-            case EnvironmentalVariableState.Corrupted:
-                e.CellStyle.BackColor = Color.Red;
-                break;
+            e.CellStyle.BackColor = Color.Red;
         }
+        else
+        {
+            switch (model.State)
+            {
+                case EnvironmentalVariableState.Added:
+                    e.CellStyle.BackColor = Color.LightGreen;
+                    break;
+                case EnvironmentalVariableState.Modified:
+                    e.CellStyle.BackColor = Color.LightYellow;
+                    break;
+                case EnvironmentalVariableState.Deleted:
+                    e.CellStyle.BackColor = Color.LightCoral;
+                    break;
+                case EnvironmentalVariableState.Unchanged:
+                    e.CellStyle.BackColor = Color.White;
+                    break;
+            }
+        }
+
+        if (model.State == EnvironmentalVariableState.Deleted)
+            e.CellStyle.Font = new Font(e.CellStyle.Font, FontStyle.Strikeout);
     }
 
     /// <summary>

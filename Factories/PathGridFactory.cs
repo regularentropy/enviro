@@ -109,11 +109,11 @@ internal sealed class PathGridFactory : IPathGridFactory
                 MarkIfCorrupted(m);
             };
 
-            // Detecting env variables with corrupted path
+            // Detecting env variables with corrupted path for the list bound to this grid
 
-            foreach (var env in bundle.User) MarkIfCorrupted(env);
+            var models = tab == EnvironmentalVariableType.User ? bundle.User : bundle.Machine;
 
-            foreach (var env in bundle.Machine) MarkIfCorrupted(env);
+            foreach (var env in models) MarkIfCorrupted(env);
 
         }
 
@@ -163,8 +163,9 @@ internal sealed class PathGridFactory : IPathGridFactory
         return grid;
     }
 
-    public void MarkIfCorrupted(EnvModel env)
-    {
-        if (ValidationHelper.IsCorrupted(env.Path)) env.State = EnvironmentalVariableState.Corrupted;
-    }
+    /// <summary>
+    /// Marks or clears the corrupted-path overlay of an environmental variable without touching its edit state.
+    /// </summary>
+    /// <param name="env">The model to validate.</param>
+    public void MarkIfCorrupted(EnvModel env) => env.IsCorrupted = ValidationHelper.IsCorrupted(env.Path);
 }

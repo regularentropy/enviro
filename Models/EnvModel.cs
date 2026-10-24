@@ -56,6 +56,23 @@ internal class EnvModel : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    /// Indicates whether the path points to a location that does not exist.
+    /// This is a diagnostic overlay and is independent of <see cref="State"/>.
+    /// </summary>
+    public bool IsCorrupted
+    {
+        get;
+        set
+        {
+            if (field != value)
+            {
+                field = value;
+                OnPropertyChanged(nameof(IsCorrupted));
+            }
+        }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged(string propertyName)

@@ -13,14 +13,12 @@ internal partial class EditForm : AbstractEntryForm
     private readonly EnvModel _pm_ref;
     private readonly EnvironmentalVariableType _t;
     private readonly PathEntriesControl _entriesControl;
-    private readonly bool _startInEntries;
     private bool _entriesMode;
 
-    public EditForm(IEnvService ps, EnvModel pm, EnvironmentalVariableType t, bool startInEntries = false) : base(ps)
+    public EditForm(IEnvService ps, EnvModel pm, EnvironmentalVariableType t) : base(ps)
     {
         _pm_ref = pm;
         _t = t;
-        _startInEntries = startInEntries;
 
         nameTextBox.Text = pm.Name;
         pathTextBox.Text = pm.Path;
@@ -38,18 +36,6 @@ internal partial class EditForm : AbstractEntryForm
         pathTextBox.TextChanged += (_, _) => UpdateEntriesButton();
 
         UpdateEntriesButton();
-    }
-
-    /// <summary>
-    /// Applies the requested starting view once the form has been scaled, so the grown
-    /// entries window matches the current DPI.
-    /// </summary>
-    protected override void OnLoad(EventArgs e)
-    {
-        base.OnLoad(e);
-
-        if (_startInEntries && entriesButton.Visible)
-            SetEntriesMode(true);
     }
 
     /// <summary>

@@ -29,10 +29,8 @@
         private void InitializeComponent()
         {
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
-            saveToolStripMenuItem = new ToolStripMenuItem();
-            toolStripMenuItem1 = new ToolStripMenuItem();
-            viewToolStripMenuItem = new ToolStripMenuItem();
-            refreshToolStripMenuItem = new ToolStripMenuItem();
+            fileToolStripMenuItem = new ToolStripMenuItem();
+            exitToolStripMenuItem = new ToolStripMenuItem();
             helpToolStripMenuItem = new ToolStripMenuItem();
             checkForUpdatesToolStripMenuItem = new ToolStripMenuItem();
             aboutToolStripMenuItem = new ToolStripMenuItem();
@@ -43,6 +41,7 @@
             addToolStripButton = new ToolStripButton();
             editToolStripButton = new ToolStripButton();
             deleteToolStripButton = new ToolStripButton();
+            refreshToolStripButton = new ToolStripButton();
             applyToolStripButton = new ToolStripButton();
             statusStrip1 = new StatusStrip();
             pendingStatusLabel = new ToolStripStatusLabel();
@@ -54,30 +53,18 @@
             statusStrip1.SuspendLayout();
             SuspendLayout();
             // 
-            // saveToolStripMenuItem
+            // fileToolStripMenuItem
             // 
-            saveToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { toolStripMenuItem1 });
-            saveToolStripMenuItem.Name = "saveToolStripMenuItem";
-            resources.ApplyResources(saveToolStripMenuItem, "saveToolStripMenuItem");
+            fileToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { exitToolStripMenuItem });
+            fileToolStripMenuItem.Name = "fileToolStripMenuItem";
+            resources.ApplyResources(fileToolStripMenuItem, "fileToolStripMenuItem");
             // 
-            // toolStripMenuItem1
+            // exitToolStripMenuItem
             // 
-            toolStripMenuItem1.Name = "toolStripMenuItem1";
-            resources.ApplyResources(toolStripMenuItem1, "toolStripMenuItem1");
-            toolStripMenuItem1.Click += Apply;
+            exitToolStripMenuItem.Name = "exitToolStripMenuItem";
+            resources.ApplyResources(exitToolStripMenuItem, "exitToolStripMenuItem");
+            exitToolStripMenuItem.Click += CloseApplication;
             // 
-            // viewToolStripMenuItem
-            //
-            viewToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { refreshToolStripMenuItem });
-            viewToolStripMenuItem.Name = "viewToolStripMenuItem";
-            resources.ApplyResources(viewToolStripMenuItem, "viewToolStripMenuItem");
-            //
-            // refreshToolStripMenuItem
-            //
-            refreshToolStripMenuItem.Name = "refreshToolStripMenuItem";
-            resources.ApplyResources(refreshToolStripMenuItem, "refreshToolStripMenuItem");
-            refreshToolStripMenuItem.Click += RefreshEntryClicked;
-            //
             // helpToolStripMenuItem
             // 
             helpToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { checkForUpdatesToolStripMenuItem, aboutToolStripMenuItem });
@@ -98,7 +85,7 @@
             // 
             // menuStrip1
             // 
-            menuStrip1.Items.AddRange(new ToolStripItem[] { saveToolStripMenuItem, viewToolStripMenuItem, optionsToolStripMenuItem, helpToolStripMenuItem });
+            menuStrip1.Items.AddRange(new ToolStripItem[] { fileToolStripMenuItem, optionsToolStripMenuItem, helpToolStripMenuItem });
             resources.ApplyResources(menuStrip1, "menuStrip1");
             menuStrip1.Name = "menuStrip1";
             // 
@@ -109,7 +96,7 @@
             // 
             // toolStrip1
             // 
-            toolStrip1.Items.AddRange(new ToolStripItem[] { addToolStripButton, editToolStripButton, deleteToolStripButton, applyToolStripButton });
+            toolStrip1.Items.AddRange(new ToolStripItem[] { addToolStripButton, editToolStripButton, deleteToolStripButton, refreshToolStripButton, applyToolStripButton });
             toolStrip1.Name = "toolStrip1";
             resources.ApplyResources(toolStrip1, "toolStrip1");
             // 
@@ -130,9 +117,15 @@
             deleteToolStripButton.Name = "deleteToolStripButton";
             resources.ApplyResources(deleteToolStripButton, "deleteToolStripButton");
             deleteToolStripButton.Click += DeleteEntryClicked;
-            // 
+            //
+            // refreshToolStripButton
+            //
+            refreshToolStripButton.Name = "refreshToolStripButton";
+            resources.ApplyResources(refreshToolStripButton, "refreshToolStripButton");
+            refreshToolStripButton.Click += RefreshEntryClicked;
+            //
             // applyToolStripButton
-            // 
+            //
             applyToolStripButton.Name = "applyToolStripButton";
             resources.ApplyResources(applyToolStripButton, "applyToolStripButton");
             applyToolStripButton.Click += Apply;
@@ -196,10 +189,8 @@
 
         #endregion
 
-        private ToolStripMenuItem saveToolStripMenuItem;
-        private ToolStripMenuItem toolStripMenuItem1;
-        private ToolStripMenuItem viewToolStripMenuItem;
-        private ToolStripMenuItem refreshToolStripMenuItem;
+        private ToolStripMenuItem fileToolStripMenuItem;
+        private ToolStripMenuItem exitToolStripMenuItem;
         private ToolStripMenuItem helpToolStripMenuItem;
         private ToolStripMenuItem checkForUpdatesToolStripMenuItem;
         private ToolStripMenuItem aboutToolStripMenuItem;
@@ -208,6 +199,7 @@
         private ToolStripButton addToolStripButton;
         private ToolStripButton editToolStripButton;
         private ToolStripButton deleteToolStripButton;
+        private ToolStripButton refreshToolStripButton;
         private ToolStripButton applyToolStripButton;
         private StatusStrip statusStrip1;
         private ToolStripStatusLabel pendingStatusLabel;

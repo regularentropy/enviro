@@ -59,14 +59,6 @@ internal partial class MainForm : Form
 
         var isAdmin = AdminChecker.IsAdmin();
 
-        if (!isAdmin)
-        {
-            ToolStripItem item = new ToolStripMenuItem() { Text = "Run as Administrator" };
-            saveToolStripMenuItem.DropDownItems.Add(item);
-
-            item.Click += RestartAsAdmin;
-        }
-
         elevationStatusLabel.Text = isAdmin ? "Administrator" : "Standard user";
 
         // Legend for the grid's state-indicator column, available without using colour vision.
@@ -119,6 +111,11 @@ internal partial class MainForm : Form
         var form = _serviceProvider.GetRequiredService<AboutForm>();
         form.ShowDialog();
     }
+
+    /// <summary>
+    /// Closes the window through the normal close path, so unapplied changes are still confirmed.
+    /// </summary>
+    private void CloseApplication(object? sender, EventArgs e) => Close();
 
     public void RestartAsAdmin(object? sender, EventArgs e)
     {
@@ -427,13 +424,11 @@ internal partial class MainForm : Form
     }
 
     /// <summary>
-    /// Enables the Apply entry and toolbar button only while there is pending work.
+    /// Enables the Apply toolbar button only while there is pending work.
     /// </summary>
     private void UpdateApplyState()
     {
-        var enabled = _envService.HasChanges();
-        toolStripMenuItem1.Enabled = enabled;
-        applyToolStripButton.Enabled = enabled;
+        applyToolStripButton.Enabled = _envService.HasChanges();
     }
 
     private async void Apply(object sender, EventArgs e)

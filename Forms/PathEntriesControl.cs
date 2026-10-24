@@ -1,4 +1,5 @@
 using enviro.Services;
+using enviro.Static;
 using Microsoft.WindowsAPICodePack.Dialogs;
 using System.Diagnostics;
 
@@ -48,23 +49,10 @@ internal partial class PathEntriesControl : UserControl
     /// <summary>
     /// The list joined with <c>;</c>, dropping blank entries.
     /// </summary>
-    public string JoinedValue
-    {
-        get
-        {
-            var segments = new List<string>();
-
-            foreach (DataGridViewRow row in segmentsGrid.Rows)
-            {
-                var value = row.Cells[valueColumn.Index].Value?.ToString()?.Trim();
-
-                if (!string.IsNullOrWhiteSpace(value))
-                    segments.Add(value);
-            }
-
-            return string.Join(';', segments);
-        }
-    }
+    public string JoinedValue =>
+        ValidationHelper.JoinPathList(segmentsGrid.Rows
+            .Cast<DataGridViewRow>()
+            .Select(row => row.Cells[valueColumn.Index].Value?.ToString()?.Trim() ?? string.Empty));
 
     /// <summary>
     /// Replaces the list with the non-blank segments of a value. Does not raise
@@ -79,11 +67,8 @@ internal partial class PathEntriesControl : UserControl
         {
             segmentsGrid.Rows.Clear();
 
-            foreach (var segment in value.Split(';'))
-            {
-                if (!string.IsNullOrWhiteSpace(segment))
-                    AddRow(segment.Trim());
-            }
+            foreach (var segment in ValidationHelper.SplitPathList(value))
+                AddRow(segment.Trim());
 
             if (segmentsGrid.Rows.Count > 0)
                 segmentsGrid.CurrentCell = segmentsGrid.Rows[0].Cells[valueColumn.Index];
@@ -250,7 +235,7 @@ internal partial class PathEntriesControl : UserControl
         if (!TryGetExistingTarget(out var target))
             return;
 
-        if (Directory.Exists(target))
+        if (ValidationHelper.IsExistingDirectory(target))
         {
             Process.Start(new ProcessStartInfo
             {
@@ -270,7 +255,8 @@ internal partial class PathEntriesControl : UserControl
     }
 
     /// <summary>
-    /// Resolves the selected segment to an existing location for the Open action.
+    /// Resolves the selected segment to an existing location for the Open action. The service verdict
+    /// decides whether it exists; <see cref="ValidationHelper.IsExistingDirectory"/> decides what it is.
     /// </summary>
     /// <param name="target">The expanded, existing path.</param>
     /// <returns>True when the selected segment exists.</returns>

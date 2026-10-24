@@ -1,7 +1,6 @@
 ﻿using enviro.Forms;
 using enviro.Models;
 using enviro.Services;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace enviro.Factories;
 
@@ -37,8 +36,9 @@ internal interface IActionFactory<TModel> : IActionFactory
 /// <summary>
 /// Factory for creating entry forms (Create and Edit forms) for environmental variables.
 /// </summary>
-/// <param name="_sp">The service provider for dependency injection.</param>
-internal class EntryFormFactory(IServiceProvider _sp) : IActionFactory<EnvModel>
+/// <param name="_env">The store whose scopes the dialogs are bound to.</param>
+/// <param name="_corruption">The corrupted-path service the PATH editor asks for segment verdicts.</param>
+internal class EntryFormFactory(IEnvService _env, ICorruptedPathService _corruption) : IActionFactory<EnvModel>
 {
     /// <summary>
     /// Creates a new form for creating an environmental variable.
@@ -46,7 +46,7 @@ internal class EntryFormFactory(IServiceProvider _sp) : IActionFactory<EnvModel>
     /// <param name="t">The type of environmental variable (User or Machine).</param>
     /// <returns>A CreateForm instance.</returns>
     public Form Create(EnvironmentalVariableType t) =>
-        new CreateForm(_sp.GetRequiredService<IEnvService>().GetScope(t));
+        new CreateForm(_env.GetScope(t));
 
     /// <summary>
     /// Creates a new form for editing an existing environmental variable.
@@ -55,8 +55,5 @@ internal class EntryFormFactory(IServiceProvider _sp) : IActionFactory<EnvModel>
     /// <param name="t">The type of environmental variable (User or Machine).</param>
     /// <returns>An EditForm instance.</returns>
     public Form Create(EnvModel model, EnvironmentalVariableType t) =>
-        new EditForm(
-            _sp.GetRequiredService<IEnvService>().GetScope(t),
-            model,
-            _sp.GetRequiredService<ICorruptedPathService>());
+        new EditForm(_env.GetScope(t), model, _corruption);
 }

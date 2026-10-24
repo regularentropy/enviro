@@ -24,19 +24,9 @@ internal class MetadataRepository
     public Version Version { get; init; }
 
     /// <summary>
-    /// Host of the repository (e.g github.com)
-    /// </summary>
-    public string RepositoryHost { get; init; }
-
-    /// <summary>
     /// Link to the current repository on a hosting serices
     /// </summary>
     public string RepositoryLink { get; init; }
-
-    /// <summary>
-    /// Name of the host (e.g api.github.com)
-    /// </summary>
-    public string APIHost { get; init; }
 
     /// <summary>
     /// Link to an API link
@@ -55,11 +45,8 @@ internal class MetadataRepository
         Author = assembly.GetCustomAttribute<AssemblyCompanyAttribute>().Company;
         Version = new Version(GetVersion(assembly));
 
-        RepositoryHost = "github.com";
-        RepositoryLink = $"https://{RepositoryHost}/{Author}/{Title}";
-
-        APIHost = $"https://api.{RepositoryHost}";
-        APILink = $"{APIHost}/repos/{Author}/{Title}/releases/latest";
+        RepositoryLink = $"https://github.com/{Author}/{Title}";
+        APILink = $"https://api.github.com/repos/{Author}/{Title}/releases/latest";
     }
 
     /// <summary>

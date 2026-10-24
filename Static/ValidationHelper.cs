@@ -76,45 +76,70 @@ internal static class ValidationHelper
         || value.Contains(';');
 
     /// <summary>
-    /// Checks whether a single <c>;</c>-separated segment points at a missing location.
-    /// Non-path text is never missing.
+    /// Splits a value into its <c>;</c>-separated entries, dropping blank ones.
     /// </summary>
-    /// <param name="entry">The segment to check.</param>
+    /// <param name="value">The variable value to split.</param>
+    /// <returns>The non-blank segments, in order.</returns>
+    public static IEnumerable<string> SplitPathList(string value) =>
+        value.Split(';').Where(segment => !string.IsNullOrWhiteSpace(segment));
+
+    /// <summary>
+    /// Joins entries into a <c>;</c>-separated value, dropping blank ones.
+    /// </summary>
+    /// <param name="segments">The entries to join.</param>
+    /// <returns>The joined value.</returns>
+    public static string JoinPathList(IEnumerable<string> segments) =>
+        string.Join(';', segments.Where(segment => !string.IsNullOrWhiteSpace(segment)));
+
+    /// <summary>
+    /// Checks whether a single <c>;</c>-separated segment points at a missing location.
+    /// The segment must already be expanded; non-path text is never missing.
+    /// </summary>
+    /// <param name="entry">The expanded segment to check.</param>
     /// <returns>True when the segment looks like a path but does not exist.</returns>
     public static bool IsMissingPath(string entry) => !IsValidEntry(entry);
 
     /// <summary>
     /// Validating entry (whether the variable has corrupted path or a simple text)
     /// </summary>
-    /// <param name="path"></param>
-    /// <returns></returns>
-    private static bool IsValidEntry(string path)
-    {
-        // Unwrapping current entry from the %entry% form
-        var extendedPath = Environment.ExpandEnvironmentVariables(path);
+    /// <param name="path">The already expanded segment to check.</param>
+    /// <returns>True when the segment is not a missing path.</returns>
+    private static bool IsValidEntry(string path) =>
+        !IsPathToDirectory(path) || IsDirectoryExist(path);
 
-        if (!IsPathToDirectory(extendedPath)) return true;
-
-        if (IsDirectoryExist(extendedPath)) return true;
-
-        return false;
-    }
+    /// <summary>
+    /// Tells a folder from a file for a location the caller already knows exists; a path that cannot
+    /// be resolved is not a folder.
+    /// </summary>
+    /// <param name="path">A path that <see cref="IsDirectoryExist"/> reported as existing.</param>
+    /// <returns>True for a directory, false for a file or an unresolvable path.</returns>
+    public static bool IsExistingDirectory(string path) =>
+        TryResolveFullPath(path, out var fullPath) && Directory.Exists(fullPath);
 
     /// <summary>
     /// Check if the directory or file exists inside the given path
     /// </summary>
     /// <param name="path"></param>
     /// <returns>True if directory exists</returns>
-    private static bool IsDirectoryExist(string path)
+    private static bool IsDirectoryExist(string path) =>
+        TryResolveFullPath(path, out var fullPath) && (Directory.Exists(fullPath) || File.Exists(fullPath));
+
+    /// <summary>
+    /// Resolves a path to its full form, treating a malformed path as one that cannot point anywhere.
+    /// </summary>
+    /// <param name="path">The path to resolve.</param>
+    /// <param name="fullPath">The resolved path, empty when resolution failed.</param>
+    /// <returns>True when the path could be resolved.</returns>
+    private static bool TryResolveFullPath(string path, out string fullPath)
     {
         try
         {
-            var fullPath = Path.GetFullPath(path);
-            return Directory.Exists(fullPath) || File.Exists(fullPath);
+            fullPath = Path.GetFullPath(path);
+            return true;
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or IOException)
         {
-            // A malformed path cannot point at an existing location.
+            fullPath = string.Empty;
             return false;
         }
     }

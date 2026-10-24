@@ -26,6 +26,13 @@ internal interface IEnvGridFactory
     void AttachFilter(DataGridView grid, TextBox filter);
 
     /// <summary>
+    /// The filter box connected to a grid.
+    /// </summary>
+    /// <param name="grid">The grid whose filter box should be returned.</param>
+    /// <returns>The filter box attached through <see cref="AttachFilter"/>, or null when there is none.</returns>
+    TextBox? FilterOf(DataGridView grid);
+
+    /// <summary>
     /// Clears every attached filter box, showing all rows again.
     /// </summary>
     void ClearFilters();
@@ -38,7 +45,7 @@ internal sealed class EnvGridFactory : IEnvGridFactory
 {
     private const string StateIndicatorColumnName = "StateIndicator";
 
-    private readonly IEnvService ps;
+    private readonly IEnvService env;
     private readonly IContextMenuFactory cf;
     private readonly IActionFactory<EnvModel> af;
     private readonly ICorruptedPathService _corruption;
@@ -49,13 +56,13 @@ internal sealed class EnvGridFactory : IEnvGridFactory
     /// <summary>
     /// Initializes a new instance of the <see cref="EnvGridFactory"/> class.
     /// </summary>
-    /// <param name="pathService">The service for managing environmental variables.</param>
+    /// <param name="envService">The service for managing environmental variables.</param>
     /// <param name="actionFactory">The factory for creating action forms.</param>
     /// <param name="contextMenuFactory">The factory for creating context menus.</param>
     /// <param name="corruption">The service that owns the corrupted-path overlay.</param>
-    public EnvGridFactory(IEnvService pathService, IActionFactory<EnvModel> actionFactory, IContextMenuFactory contextMenuFactory, ICorruptedPathService corruption)
+    public EnvGridFactory(IEnvService envService, IActionFactory<EnvModel> actionFactory, IContextMenuFactory contextMenuFactory, ICorruptedPathService corruption)
     {
-        ps = pathService;
+        env = envService;
         cf = contextMenuFactory;
         af = actionFactory;
         _corruption = corruption;
@@ -114,7 +121,7 @@ internal sealed class EnvGridFactory : IEnvGridFactory
             new DataGridViewTextBoxColumn() { Name="PathText", HeaderText = "Value", DataPropertyName = nameof(EnvModel.Path), SortMode = DataGridViewColumnSortMode.Automatic }
         ]);
 
-        var scope = ps.GetScope(tab);
+        var scope = env.GetScope(tab);
 
         // The grid binds to the service-owned rows, so every change arrives as a ListChanged event.
         var bindingSource = new BindingSource { DataSource = scope.Rows };
@@ -156,13 +163,13 @@ internal sealed class EnvGridFactory : IEnvGridFactory
         {
             if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
 
-            // Only an admin can edit the "Machine" panel
-            if (tab == EnvironmentalVariableType.Machine && !AdminChecker.IsAdmin())
-                return;
+            // The tab banner already says a read-only scope is read-only, so a double-click on it
+            // stays silent; the scope rule itself is AdminChecker's.
+            if (!AdminChecker.CanMutate(grid)) return;
 
-            var pm = grid.CurrentRow.DataBoundItem as EnvModel;
-
-            af.Create(pm, tab).ShowDialog();
+            // The same guarded edit as the toolbar, the context menu and the shortcuts: the scope
+            // comes from the grid's tab, so no elevation decision is taken from this factory.
+            RowActionHelper.Edit(grid, af);
         };
 
         grid.MouseClick += (s, e) =>
@@ -183,7 +190,7 @@ internal sealed class EnvGridFactory : IEnvGridFactory
 
                 var model = (EnvModel)grid.CurrentRow.DataBoundItem;
 
-                var cms = cf.CreateForPathGrid(grid, model);
+                var cms = cf.CreateForRow(grid, model);
                 cms.Show(grid, e.Location);
             }
         };
@@ -218,12 +225,20 @@ internal sealed class EnvGridFactory : IEnvGridFactory
     }
 
     /// <summary>
+    /// The filter box connected to a grid; the mapping is owned here, so the shell never has to
+    /// find the box by control type.
+    /// </summary>
+    /// <param name="grid">The grid whose filter box should be returned.</param>
+    /// <returns>The filter box attached through <see cref="AttachFilter"/>, or null when there is none.</returns>
+    public TextBox? FilterOf(DataGridView grid) => _filters.GetValueOrDefault(grid);
+
+    /// <summary>
     /// Clears every attached filter box, showing all rows again.
     /// </summary>
     public void ClearFilters()
     {
-        foreach (var filter in _filters.Values)
-            filter.Clear();
+        foreach (var grid in _filters.Keys)
+            FilterOf(grid)?.Clear();
     }
 
     /// <summary>
@@ -234,7 +249,7 @@ internal sealed class EnvGridFactory : IEnvGridFactory
     /// <param name="grid">The grid whose filter should be applied.</param>
     private void ApplyFilter(DataGridView grid)
     {
-        if (!_filters.TryGetValue(grid, out var filter))
+        if (FilterOf(grid) is not { } filter)
             return;
 
         var text = filter.Text.Trim();

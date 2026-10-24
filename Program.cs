@@ -46,11 +46,7 @@ namespace enviro
             services.AddSingleton<IEnvGridFactory, EnvGridFactory>();
             services.AddSingleton<ITabFactory, TabFactory>();
 
-            // The marshaller defaults to the UI synchronization context of the requesting thread.
-            services.AddSingleton<ICorruptedPathService>(sp => new CorruptedPathService(
-                sp.GetRequiredService<IEnvService>(),
-                sp.GetRequiredService<IConfigService>(),
-                sp.GetRequiredService<IAppLog>()));
+            services.AddSingleton<ICorruptedPathService, CorruptedPathService>();
 
             services.AddSingleton<IUpdateService, UpdateService>();
             services.AddSingleton<IEnvAdapter, EnvAdapter>();

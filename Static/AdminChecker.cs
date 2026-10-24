@@ -21,15 +21,22 @@ internal static class AdminChecker
     public static bool IsAdmin() => IsElevated.Value;
 
     /// <summary>
+    /// Determines whether the given scope accepts mutations in this session.
+    /// User scope is always mutable; Machine scope requires elevation.
+    /// </summary>
+    /// <param name="scope">The scope to check.</param>
+    /// <returns>True if mutations are allowed for the scope.</returns>
+    public static bool CanMutate(EnvironmentalVariableType scope) =>
+        scope != EnvironmentalVariableType.Machine || IsAdmin();
+
+    /// <summary>
     /// Determines whether the scope that owns the control accepts mutations in this session.
-    /// User scope is always mutable; Machine scope requires elevation; a control with no scope
-    /// carrying ancestor denies mutations.
+    /// A control with no scope-carrying ancestor denies mutations.
     /// </summary>
     /// <param name="c">The control to check (typically a DataGridView).</param>
     /// <returns>True if mutations are allowed for the control's scope.</returns>
     public static bool CanMutate(Control c) =>
-        ControlHelper.GetTabType(c) is { } scope
-        && (scope != EnvironmentalVariableType.Machine || IsAdmin());
+        ControlHelper.GetTabType(c) is { } scope && CanMutate(scope);
 
     /// <summary>
     /// Validates that the user has administrator privileges when accessing the Machine tab.

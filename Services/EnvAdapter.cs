@@ -46,7 +46,8 @@ internal sealed class EnvAdapter(IEnvService _es, IAppLog _log) : IEnvAdapter
 {
     /// <summary>
     /// Applies all pending changes to the system environment variables.
-    /// User variables are always applied; machine variables are only applied if running as administrator.
+    /// User variables are always applied; machine variables are applied only when the machine
+    /// scope accepts mutations, i.e. when the process is elevated.
     /// </summary>
     /// <returns>The rows written per scope, and the row that stopped the run if one threw.</returns>
     public Task<ApplyResult> ApplyAsync()
@@ -58,7 +59,7 @@ internal sealed class EnvAdapter(IEnvService _es, IAppLog _log) : IEnvAdapter
 
         var machineApplied = 0;
 
-        if (AdminChecker.IsAdmin())
+        if (AdminChecker.CanMutate(_es.Machine.Type))
         {
             var machine = ApplyAndClean(_es.Machine);
             machineApplied = machine.Applied;

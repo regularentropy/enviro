@@ -89,46 +89,36 @@ internal sealed class CorruptedPathService : ICorruptedPathService
     private readonly IConfigService _config;
     private readonly IAppLog _log;
 
-    /// <summary>Marshals a finished scan back to the thread that owns the models.</summary>
-    private readonly Action<Action>? _post;
-
     /// <summary>One pending debounce + scan per scope; a new request for the scope replaces it.</summary>
     private readonly Dictionary<IEnvScope, CancellationTokenSource> _pending = [];
 
     /// <param name="env">The service whose two scopes are scanned.</param>
     /// <param name="config">Read for the validation switch; a request while it is off is a no-op.</param>
     /// <param name="log">Where a scan failure is recorded.</param>
-    /// <param name="post">
-    /// Optional marshaller, so the scan can be driven without a UI thread. When null the
-    /// <see cref="SynchronizationContext"/> of the requesting thread is used.
-    /// </param>
-    public CorruptedPathService(IEnvService env, IConfigService config, IAppLog log, Action<Action>? post = null)
+    public CorruptedPathService(IEnvService env, IConfigService config, IAppLog log)
     {
         _env = env;
         _config = config;
         _log = log;
-        _post = post;
     }
 
     /// <inheritdoc />
     public PathSegmentState ValidateSegment(string segment)
     {
+        // Expanded once, here: the predicates below see the same expanded text.
         var expanded = Environment.ExpandEnvironmentVariables(segment);
 
         if (!ValidationHelper.IsPathToDirectory(expanded))
             return PathSegmentState.NotPath;
 
-        return ValidationHelper.IsMissingPath(segment) ? PathSegmentState.Missing : PathSegmentState.Exists;
+        return ValidationHelper.IsMissingPath(expanded) ? PathSegmentState.Missing : PathSegmentState.Exists;
     }
 
     /// <inheritdoc />
     public bool IsCorrupted(string value)
     {
-        foreach (var segment in value.Split(';'))
+        foreach (var segment in ValidationHelper.SplitPathList(value))
         {
-            if (string.IsNullOrWhiteSpace(segment))
-                continue;
-
             if (ValidateSegment(segment) == PathSegmentState.Missing)
                 return true;
         }
@@ -254,14 +244,11 @@ internal sealed class CorruptedPathService : ICorruptedPathService
     /// The marshaller for one scan, resolved on the requesting thread.
     /// </summary>
     /// <returns>
-    /// The injected seam, a post through the caller's synchronization context, or null when there is
-    /// neither, in which case the scan is not started.
+    /// A post through the caller's synchronization context, or null when the requesting thread has
+    /// none, in which case the scan is not started.
     /// </returns>
-    private Action<Action>? CreateMarshaller()
+    private static Action<Action>? CreateMarshaller()
     {
-        if (_post is { } post)
-            return post;
-
         var context = SynchronizationContext.Current;
 
         return context is null ? null : action => context.Post(_ => action(), null);

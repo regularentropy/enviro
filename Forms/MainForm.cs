@@ -39,7 +39,7 @@ internal partial class MainForm : Form
     // Each command's projected controls, refreshed together so their enablement cannot drift.
     private readonly List<(MainCommand Command, ToolStripItem[] Targets)> _commandTargets = [];
 
-    public MainForm(IEnvService es, IActionFactory<EnvModel> af, IUpdateService us, ITabFactory tf, IEnvGridFactory gf, Func<AboutForm> aboutForm, IConfigService cs, IAppLog log, MetadataRepository mr, ICorruptedPathService corruption, ApplyCoordinator applyCoordinator)
+    public MainForm(IEnvService es, IActionFactory<EnvModel> af, IUpdateService us, ITabFactory tf, IEnvGridFactory gf, Func<AboutForm> aboutForm, IConfigService cs, IAppLog log, ICorruptedPathService corruption, ApplyCoordinator applyCoordinator)
     {
         InitializeComponent();
 
@@ -329,9 +329,9 @@ internal partial class MainForm : Form
     private bool HasSelection() => GetActiveGrid() is { } grid && ControlHelper.GetCurrentModel(grid) is not null;
 
     /// <summary>
-    /// The filter box of the active tab.
+    /// The filter box of the active tab, from the factory that owns the grid→filter mapping.
     /// </summary>
-    private TextBox? ActiveFilter() => AllTab.SelectedTab?.Controls.OfType<TextBox>().FirstOrDefault();
+    private TextBox? ActiveFilter() => GetActiveGrid() is { } grid ? _gridFactory.FilterOf(grid) : null;
 
     /// <summary>
     /// Focuses and selects the active tab's filter box.

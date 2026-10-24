@@ -10,12 +10,12 @@ namespace enviro.Factories;
 internal interface IContextMenuFactory
 {
     /// <summary>
-    /// Creates a context menu for the path grid.
+    /// Creates the context menu for a row of a grid.
     /// </summary>
     /// <param name="grid">The DataGridView to attach the context menu to.</param>
     /// <param name="pm">The environmental variable model associated with the selected row.</param>
     /// <returns>A configured ContextMenuStrip.</returns>
-    ContextMenuStrip CreateForPathGrid(DataGridView grid, EnvModel pm);
+    ContextMenuStrip CreateForRow(DataGridView grid, EnvModel pm);
 
     /// <summary>
     /// Creates the context menu for a click on the grid's empty area.
@@ -30,7 +30,7 @@ internal interface IContextMenuFactory
 /// </summary>
 internal sealed class ContextMenuFactory : IContextMenuFactory
 {
-    private readonly IEnvService _pathService;
+    private readonly IEnvService _env;
     private readonly IActionFactory<EnvModel> _entryFormFactory;
 
     /// <summary>
@@ -40,17 +40,17 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
     /// <param name="factory">The factory for creating action forms.</param>
     public ContextMenuFactory(IEnvService envService, IActionFactory<EnvModel> factory)
     {
-        _pathService = envService;
+        _env = envService;
         _entryFormFactory = factory;
     }
 
     /// <summary>
-    /// Creates a context menu for the path grid with operations like Create, Edit, Delete, and Copy.
+    /// Creates the context menu for a row of a grid, with operations like Create, Edit, Delete, and Copy.
     /// </summary>
     /// <param name="grid">The DataGridView to attach the context menu to.</param>
     /// <param name="pm">The environmental variable model associated with the selected row.</param>
     /// <returns>A configured ContextMenuStrip with menu items based on the model's state.</returns>
-    public ContextMenuStrip CreateForPathGrid(DataGridView grid, EnvModel pm)
+    public ContextMenuStrip CreateForRow(DataGridView grid, EnvModel pm)
     {
         var cms = new ContextMenuStrip();
 
@@ -60,7 +60,7 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
 
         // Restore/Reset are ungated in-memory operations, but they still belong to the grid's scope;
         // a control without one denies them like every other mutation.
-        var scope = ControlHelper.GetTabType(grid) is { } type ? _pathService.GetScope(type) : null;
+        var scope = ControlHelper.GetTabType(grid) is { } type ? _env.GetScope(type) : null;
 
         if (scope is not null)
         {
@@ -73,7 +73,7 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
         if (canMutate)
         {
             cms.Items.Add("Edit", null, (_, _) => RowActionHelper.Edit(grid, _entryFormFactory));
-            cms.Items.Add("Delete", null, (_, _) => RowActionHelper.Delete(grid, _pathService));
+            cms.Items.Add("Delete", null, (_, _) => RowActionHelper.Delete(grid, _env));
             cms.Items.Add(new ToolStripSeparator());
         }
 

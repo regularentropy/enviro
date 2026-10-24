@@ -197,7 +197,15 @@ internal sealed class EnvScope(EnvironmentalVariableType type) : IEnvScope
     /// per row.
     /// </summary>
     /// <param name="newRows">The new rows, in display order.</param>
-    public void Replace(List<EnvModel> newRows)
+    public void Replace(List<EnvModel> newRows) => Refill(newRows);
+
+    /// <summary>
+    /// Clears and refills the bound list with a single change notification: the only place that
+    /// touches the rows in bulk. It stays private, so a refill is never reachable from outside the
+    /// scope.
+    /// </summary>
+    /// <param name="newRows">The new rows, in display order.</param>
+    private void Refill(IReadOnlyList<EnvModel> newRows)
     {
         rows.RaiseListChangedEvents = false;
         try
@@ -422,12 +430,7 @@ internal sealed class EnvScope(EnvironmentalVariableType type) : IEnvScope
             ? rows.OrderBy(m => property?.GetValue(m)).ToList()
             : rows.OrderByDescending(m => property?.GetValue(m)).ToList();
 
-        rows.Clear();
-
-        foreach (var row in sortedRows)
-        {
-            rows.Add(row);
-        }
+        Refill(sortedRows);
     }
 }
 
@@ -460,8 +463,17 @@ internal sealed class EnvService : IEnvService
     /// </summary>
     /// <param name="type">The type of environmental variable (User or Machine).</param>
     /// <returns>The matching scope.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The type is neither <see cref="EnvironmentalVariableType.User"/> nor
+    /// <see cref="EnvironmentalVariableType.Machine"/>.
+    /// </exception>
     public IEnvScope GetScope(EnvironmentalVariableType type) =>
-        type == EnvironmentalVariableType.User ? user : machine;
+        type switch
+        {
+            EnvironmentalVariableType.User => user,
+            EnvironmentalVariableType.Machine => machine,
+            _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown environmental variable type."),
+        };
 
     /// <summary>
     /// Determines whether any environmental variables have been modified.

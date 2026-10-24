@@ -144,9 +144,16 @@ internal partial class MainForm : Form
         }
 
         var result = await _pathAdapter.ApplyAsync();
-        if (result)
+
+        if (!result)
         {
-            DialogHelper.ShowMessage("Successfully applied changes", "Apply");
+            DialogHelper.ShowError(
+                "Failed to apply changes.\nSome variables may not have been updated.",
+                "Apply"
+            );
+            return;
         }
+
+        DialogHelper.ShowMessage("Successfully applied changes", "Apply");
     }
 }

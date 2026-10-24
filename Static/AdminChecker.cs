@@ -1,4 +1,5 @@
-﻿using System.Security.Principal;
+﻿using enviro.Models;
+using System.Security.Principal;
 
 namespace enviro.Static;
 
@@ -16,6 +17,15 @@ internal static class AdminChecker
         .IsInRole(WindowsBuiltInRole.Administrator);
 
     /// <summary>
+    /// Determines whether the scope that owns the control accepts mutations in this session.
+    /// User scope is always mutable; Machine scope requires elevation.
+    /// </summary>
+    /// <param name="c">The control to check (typically a DataGridView).</param>
+    /// <returns>True if mutations are allowed for the control's scope.</returns>
+    public static bool CanMutate(Control c) =>
+        ControlHelper.GetTabType(c) != EnvironmentalVariableType.Machine || IsAdmin();
+
+    /// <summary>
     /// Validates that the user has administrator privileges when accessing the Machine tab.
     /// Shows an error dialog if the user tries to access Machine variables without admin rights.
     /// </summary>
@@ -23,12 +33,10 @@ internal static class AdminChecker
     /// <returns>True if the operation is allowed, false if access is denied.</returns>
     public static bool ValidateTab(Control c)
     {
-        var tab = (TabPage)c.Parent!;
-        if (tab?.Text == "Machine" && !IsAdmin())
-        {
-            DialogHelper.ShowError("Access Denied", "Please run as administrator");
-            return false;
-        }
-        return true;
+        if (CanMutate(c))
+            return true;
+
+        DialogHelper.ShowError("Access Denied", "Please run as administrator");
+        return false;
     }
 }

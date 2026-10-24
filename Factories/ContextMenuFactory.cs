@@ -46,18 +46,32 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
     public ContextMenuStrip CreateForPathGrid(DataGridView grid, EnvModel pm)
     {
         var cms = new ContextMenuStrip();
-        cms.Items.Add("Create", null, (_, _) => AppendToPath(grid));
-        cms.Items.Add("Edit", null, (_, _) => CreateEdit(grid));
-        cms.Items.Add("Delete", null, (_, _) => DeleteCurrentRow(grid));
-        cms.Items.Add(new ToolStripSeparator());
-        cms.Items.Add("Copy value", null, (_, _) => CopyToClipboard(grid, m => m.Name));
-        cms.Items.Add("Copy path", null, (_, _) => CopyToClipboard(grid, m => m.Path));
-        cms.Items.Add("Copy original path", null, (_, _) => CopyToClipboard(grid, m => m.OriginalPath));
+
+        // Without elevation the Machine scope is read-only, so don't offer mutating actions
+        // that would only be rejected on click.
+        bool canMutate = AdminChecker.CanMutate(grid);
+
+        if (canMutate)
+            cms.Items.Add("Create", null, (_, _) => AppendToPath(grid));
 
         if (pm.State == EnvironmentalVariableState.Deleted)
-            cms.Items.Insert(1, new ToolStripMenuItem("Restore", null, (_, _) => RestoreItem(pm)));
+            cms.Items.Add("Restore", null, (_, _) => RestoreItem(pm));
         else if (pm.State == EnvironmentalVariableState.Modified)
-            cms.Items.Insert(1, new ToolStripMenuItem("Reset", null, (_, _) => ResetItem(pm)));
+            cms.Items.Add("Reset", null, (_, _) => ResetItem(pm));
+
+        if (canMutate)
+        {
+            cms.Items.Add("Edit", null, (_, _) => CreateEdit(grid));
+            cms.Items.Add("Delete", null, (_, _) => DeleteCurrentRow(grid));
+            cms.Items.Add(new ToolStripSeparator());
+        }
+
+        cms.Items.Add("Copy name", null, (_, _) => CopyToClipboard(grid, m => m.Name));
+        cms.Items.Add("Copy value", null, (_, _) => CopyToClipboard(grid, m => m.Path));
+
+        // Only a modified row has an original value that differs from the current one.
+        if (pm.State == EnvironmentalVariableState.Modified)
+            cms.Items.Add("Copy original path", null, (_, _) => CopyToClipboard(grid, m => m.OriginalPath));
 
         return cms;
     }

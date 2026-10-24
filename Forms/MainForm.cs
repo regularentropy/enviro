@@ -35,6 +35,12 @@ internal partial class MainForm : Form
     // Clears the transient message (applied changes, failed settings save) from the status strip.
     private readonly System.Windows.Forms.Timer _applyStatusTimer;
 
+    // Every command the shell exposes, defined once; the shortcuts dispatch through it.
+    private readonly MainCommandTable _commands;
+
+    // Each command's projected controls, refreshed together so their enablement cannot drift.
+    private readonly List<(MainCommand Command, ToolStripItem[] Targets)> _commandTargets = [];
+
     public MainForm(IEnvService es, IPathAdapter pa, IActionFactory<EnvModel> af, IUpdateService us, ITabFactory tf, IPathGridFactory gf, IServiceProvider sp, IConfigService cs, IAppLog log, MetadataRepository mr, ICorruptedPathService corruption)
     {
         InitializeComponent();
@@ -85,6 +91,8 @@ internal partial class MainForm : Form
 
         _envService.User.Rows.ListChanged += (_, _) => UpdateActionState();
         _envService.Machine.Rows.ListChanged += (_, _) => UpdateActionState();
+
+        _commands = CreateCommandSurfaces();
         UpdateActionState();
 
         var corruptedVarsButton = new ToolStripMenuItem("Check for corrupted variables")
@@ -341,20 +349,90 @@ internal partial class MainForm : Form
         AllTab.SelectedTab?.Controls.OfType<DataGridView>().FirstOrDefault();
 
     /// <summary>
-    /// Enables the toolbar actions for the active tab's scope and selection, and refreshes Apply.
+    /// The one place command enablement is recomputed: every toolbar button and menu item takes
+    /// its state from its command's predicate, so the two surfaces cannot drift.
     /// </summary>
     private void UpdateActionState()
     {
-        var grid = GetActiveGrid();
-        var canMutate = grid is not null && AdminChecker.CanMutate(grid);
-        var hasSelection = grid is not null && ControlHelper.GetCurrentModel(grid) is not null;
+        foreach (var (command, targets) in _commandTargets)
+        {
+            var enabled = command.IsEnabled;
 
-        addToolStripButton.Enabled = canMutate;
-        editToolStripButton.Enabled = canMutate && hasSelection;
-        deleteToolStripButton.Enabled = canMutate && hasSelection;
+            foreach (var target in targets)
+                target.Enabled = enabled;
+        }
 
-        UpdateApplyState();
         UpdateStatusStrip();
+    }
+
+    /// <summary>
+    /// Whether the active tab's scope accepts mutations in this session.
+    /// </summary>
+    private bool CanMutate() => GetActiveGrid() is { } grid && AdminChecker.CanMutate(grid);
+
+    /// <summary>
+    /// Whether the active tab's grid has a selected row.
+    /// </summary>
+    private bool HasSelection() => GetActiveGrid() is { } grid && ControlHelper.GetCurrentModel(grid) is not null;
+
+    /// <summary>
+    /// The filter box of the active tab.
+    /// </summary>
+    private TextBox? ActiveFilter() => AllTab.SelectedTab?.Controls.OfType<TextBox>().FirstOrDefault();
+
+    /// <summary>
+    /// Focuses and selects the active tab's filter box.
+    /// </summary>
+    private void FocusFilter()
+    {
+        if (ActiveFilter() is not { } filter)
+            return;
+
+        filter.Focus();
+        filter.SelectAll();
+    }
+
+    /// <summary>
+    /// Defines every command once and projects it onto the toolbar buttons and a new Edit menu.
+    /// </summary>
+    /// <returns>The table the shortcut router dispatches through.</returns>
+    private MainCommandTable CreateCommandSurfaces()
+    {
+        var add = new MainCommand("Add", [Keys.Control | Keys.N], () => CreateEntryClicked(this, EventArgs.Empty), CanMutate);
+        var edit = new MainCommand("Edit", [Keys.F2, Keys.Control | Keys.E], () => EditEntryClicked(this, EventArgs.Empty), () => CanMutate() && HasSelection());
+        var delete = new MainCommand("Delete", [Keys.Delete], () => DeleteEntryClicked(this, EventArgs.Empty), () => CanMutate() && HasSelection());
+        var refresh = new MainCommand("Refresh", [Keys.F5], () => RefreshEntryClicked(this, EventArgs.Empty), () => true);
+        var apply = new MainCommand("Apply", [Keys.Control | Keys.S], () => Apply(this, EventArgs.Empty), () => _envService.HasChanges());
+        var focusFilter = new MainCommand("Focus filter", [Keys.Control | Keys.F], FocusFilter, () => ActiveFilter() is not null);
+
+        var editMenu = new ToolStripMenuItem("Edit");
+        menuStrip1.Items.Insert(1, editMenu);
+
+        Project(add, addToolStripButton, editMenu);
+        Project(edit, editToolStripButton, editMenu);
+        Project(delete, deleteToolStripButton, editMenu);
+        Project(refresh, refreshToolStripButton, editMenu);
+        Project(apply, applyToolStripButton, editMenu);
+        editMenu.DropDownItems.Add(new ToolStripSeparator());
+        Project(focusFilter, null, editMenu);
+
+        return new MainCommandTable([add, edit, delete, refresh, apply, focusFilter]);
+    }
+
+    /// <summary>
+    /// Shows one command in the Edit menu and mirrors its enablement onto the toolbar button that
+    /// already exists for it.
+    /// </summary>
+    /// <param name="command">The command to project.</param>
+    /// <param name="button">The toolbar button for the command, or null when the toolbar has none.</param>
+    /// <param name="menu">The menu the command is listed in.</param>
+    private void Project(MainCommand command, ToolStripButton? button, ToolStripMenuItem menu)
+    {
+        var item = new ToolStripMenuItem(command.Label) { ShortcutKeys = command.Shortcuts[0] };
+        item.Click += (_, _) => command.Execute();
+        menu.DropDownItems.Add(item);
+
+        _commandTargets.Add((command, button is null ? [item] : [button, item]));
     }
 
     /// <summary>
@@ -410,60 +488,14 @@ internal partial class MainForm : Form
     }
 
     /// <summary>
-    /// Routes the keyboard shortcuts to the toolbar actions, respecting their enablement.
+    /// Runs the command bound to the pressed key; a key no command owns, or one whose command is
+    /// unavailable, keeps its default handling.
     /// </summary>
-    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
-    {
-        if (keyData == Keys.F5)
-        {
-            RefreshEntryClicked(this, EventArgs.Empty);
-            return true;
-        }
-
-        if (keyData == (Keys.Control | Keys.F))
-        {
-            if (AllTab.SelectedTab?.Controls.OfType<TextBox>().FirstOrDefault() is { } filter)
-            {
-                filter.Focus();
-                filter.SelectAll();
-                return true;
-            }
-        }
-
-        if (keyData == (Keys.Control | Keys.N) && addToolStripButton.Enabled)
-        {
-            addToolStripButton.PerformClick();
-            return true;
-        }
-
-        if ((keyData == Keys.F2 || keyData == (Keys.Control | Keys.E)) && editToolStripButton.Enabled)
-        {
-            editToolStripButton.PerformClick();
-            return true;
-        }
-
-        if (keyData == Keys.Delete && deleteToolStripButton.Enabled)
-        {
-            deleteToolStripButton.PerformClick();
-            return true;
-        }
-
-        if (keyData == (Keys.Control | Keys.S) && applyToolStripButton.Enabled)
-        {
-            applyToolStripButton.PerformClick();
-            return true;
-        }
-
-        return base.ProcessCmdKey(ref msg, keyData);
-    }
-
-    /// <summary>
-    /// Enables the Apply toolbar button only while there is pending work.
-    /// </summary>
-    private void UpdateApplyState()
-    {
-        applyToolStripButton.Enabled = _envService.HasChanges();
-    }
+    /// <remarks>
+    /// A modal dialog runs its own message loop, so its keys never reach this form.
+    /// </remarks>
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData) =>
+        _commands.TryExecute(keyData) || base.ProcessCmdKey(ref msg, keyData);
 
     private async void Apply(object sender, EventArgs e)
     {

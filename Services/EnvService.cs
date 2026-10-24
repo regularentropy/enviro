@@ -35,6 +35,7 @@ internal interface IEnvService
     /// <summary>
     /// Re-reads both scopes from the system, discarding every in-memory edit. The refreshed
     /// lists are in name order and every model starts as <c>Unchanged</c> with no corrupted overlay.
+    /// A read that throws leaves the previous rows in place.
     /// </summary>
     void Reload();
 
@@ -119,19 +120,20 @@ internal sealed class EnvService : IEnvService
     /// </summary>
     public void Reload()
     {
-        variables.User.Clear();
-        variables.Machine.Clear();
-        FillPath();
+        // Read both scopes before touching the lists: a throw while reading must leave the
+        // rows the user is looking at untouched.
+        var user = LoadVariables(EnvironmentVariableTarget.User);
+        var machine = LoadVariables(EnvironmentVariableTarget.Machine);
+
+        Replace(variables.User, user);
+        Replace(variables.Machine, machine);
     }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EnvService"/> class.
     /// Loads all environmental variables from the system.
     /// </summary>
-    public EnvService()
-    {
-        FillPath();
-    }
+    public EnvService() => Reload();
 
     /// <summary>
     /// Gets the collection of variables for the specified type.
@@ -142,20 +144,37 @@ internal sealed class EnvService : IEnvService
         t == EnvironmentalVariableType.User ? variables.User : variables.Machine;
 
     /// <summary>
-    /// Loads all environmental variables from the system.
+    /// Replaces the rows of one list with a fresh snapshot, raising a single change notification
+    /// instead of one per row.
     /// </summary>
-    private void FillPath()
+    /// <param name="list">The list to refill.</param>
+    /// <param name="rows">The new rows, in display order.</param>
+    private static void Replace(BindingList<EnvModel> list, List<EnvModel> rows)
     {
-        LoadVariables(EnvironmentVariableTarget.User, variables.User);
-        LoadVariables(EnvironmentVariableTarget.Machine, variables.Machine);
+        list.RaiseListChangedEvents = false;
+        try
+        {
+            list.Clear();
+
+            foreach (var row in rows)
+            {
+                list.Add(row);
+            }
+        }
+        finally
+        {
+            list.RaiseListChangedEvents = true;
+        }
+
+        // Listeners do their O(n) work once (filter, action state, status strip) instead of per row.
+        list.ResetBindings();
     }
 
     /// <summary>
-    /// Loads environmental variables from the specified target into the provided list.
+    /// Reads environmental variables from the specified target into a fresh, name-ordered list.
     /// </summary>
     /// <param name="target">The environment variable target (User or Machine).</param>
-    /// <param name="list">The list to populate with variables.</param>
-    private static void LoadVariables(EnvironmentVariableTarget target, BindingList<EnvModel> list)
+    private static List<EnvModel> LoadVariables(EnvironmentVariableTarget target)
     {
         var variables = new List<EnvModel>();
 
@@ -171,10 +190,7 @@ internal sealed class EnvService : IEnvService
             });
         }
 
-        foreach (var variable in variables.OrderBy(v => v.Name))
-        {
-            list.Add(variable);
-        }
+        return [.. variables.OrderBy(v => v.Name)];
     }
 
     /// <summary>

@@ -1,4 +1,5 @@
 ﻿using enviro.Models;
+using enviro.Static;
 using System.ComponentModel;
 
 namespace enviro.Services;
@@ -63,6 +64,15 @@ internal enum UpsertOutcome
 }
 
 /// <summary>
+/// What one <see cref="IEnvScope.Import"/> did, so the shell can report it without inspecting rows.
+/// </summary>
+/// <param name="Added">Entries that became new rows.</param>
+/// <param name="Overwritten">Entries that updated an existing row (a pending deletion was restored).</param>
+/// <param name="Unchanged">Entries whose row already held the identical value; those rows were untouched.</param>
+/// <param name="Skipped">Entries rejected by the input rules; nothing was created for them.</param>
+internal sealed record ImportOutcome(int Added, int Overwritten, int Unchanged, int Skipped);
+
+/// <summary>
 /// One variable scope: the rows that belong to <see cref="Type"/> plus every operation bound to
 /// that scope. The rows are handed out read-only, so nothing outside the service can add, remove
 /// or reorder them.
@@ -105,6 +115,15 @@ internal interface IEnvScope
     /// </param>
     /// <returns>Which case happened; <see cref="UpsertOutcome.Refused"/> mutates nothing.</returns>
     UpsertOutcome Upsert(string name, string value, bool overwrite);
+
+    /// <summary>
+    /// Merges a set of entries into this scope: new names become rows, existing names take the
+    /// value (a pending deletion is restored), identical values are left untouched, and entries
+    /// the input rules reject are skipped. Raises one change notification for the whole batch.
+    /// </summary>
+    /// <param name="entries">The name/value pairs to merge, in file order.</param>
+    /// <returns>What the merge did, per entry.</returns>
+    ImportOutcome Import(IReadOnlyList<KeyValuePair<string, string>> entries);
 
     /// <summary>
     /// Resolves the whole edit path in one call: renames and revalues one row, or rejects the edit
@@ -286,6 +305,60 @@ internal sealed class EnvScope(EnvironmentalVariableType type) : IEnvScope
 
         Update(existing, value);
         return UpsertOutcome.Overridden;
+    }
+
+    /// <summary>
+    /// Merges a set of entries into this scope, raising one change notification for the batch.
+    /// </summary>
+    /// <param name="entries">The name/value pairs to merge, in file order.</param>
+    /// <returns>What the merge did, per entry.</returns>
+    public ImportOutcome Import(IReadOnlyList<KeyValuePair<string, string>> entries)
+    {
+        var added = 0;
+        var overwritten = 0;
+        var unchanged = 0;
+        var skipped = 0;
+
+        // One refresh for the whole file, like Replace/Sort's refill: a 500-row file is one
+        // notification instead of 500.
+        rows.RaiseListChangedEvents = false;
+
+        try
+        {
+            foreach (var (name, value) in entries)
+            {
+                if (!ValidationHelper.IsValidEnvironmentVariableInput(name, value))
+                {
+                    skipped++;
+                    continue;
+                }
+
+                var existing = GetByName(name);
+
+                // The file already says what the row says: leave the row (and its state) alone.
+                if (existing is not null
+                    && existing.State != EnvironmentalVariableState.Deleted
+                    && string.Equals(existing.Path, value, StringComparison.Ordinal))
+                {
+                    unchanged++;
+                    continue;
+                }
+
+                // Import merges and overwrites; it never deletes, so an upsert cannot refuse.
+                if (Upsert(name, value, overwrite: true) == UpsertOutcome.Added)
+                    added++;
+                else
+                    overwritten++;
+            }
+        }
+        finally
+        {
+            rows.RaiseListChangedEvents = true;
+        }
+
+        rows.ResetBindings();
+
+        return new ImportOutcome(added, overwritten, unchanged, skipped);
     }
 
     /// <summary>

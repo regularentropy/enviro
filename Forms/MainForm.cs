@@ -3,6 +3,7 @@ using enviro.Forms;
 using enviro.Models;
 using enviro.Services;
 using enviro.Static;
+using Microsoft.WindowsAPICodePack.Dialogs;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Net;
@@ -22,6 +23,7 @@ internal partial class MainForm : Form
     private readonly ICorruptedPathService _corruption;
     private readonly IAppLog _log;
     private readonly ApplyCoordinator _applyCoordinator;
+    private readonly IVariableFileService _variableFiles;
 
     // Builds the About dialog on demand, so the shell holds no container.
     private readonly Func<AboutForm> _aboutFormFactory;
@@ -39,7 +41,7 @@ internal partial class MainForm : Form
     // Each command's projected controls, refreshed together so their enablement cannot drift.
     private readonly List<(MainCommand Command, ToolStripItem[] Targets)> _commandTargets = [];
 
-    public MainForm(IEnvService es, IActionFactory<EnvModel> af, IUpdateService us, ITabFactory tf, IEnvGridFactory gf, Func<AboutForm> aboutForm, IConfigService cs, IAppLog log, ICorruptedPathService corruption, ApplyCoordinator applyCoordinator)
+    public MainForm(IEnvService es, IActionFactory<EnvModel> af, IUpdateService us, ITabFactory tf, IEnvGridFactory gf, Func<AboutForm> aboutForm, IConfigService cs, IAppLog log, ICorruptedPathService corruption, ApplyCoordinator applyCoordinator, IVariableFileService variableFiles)
     {
         InitializeComponent();
 
@@ -53,6 +55,7 @@ internal partial class MainForm : Form
         _corruption = corruption;
         _log = log;
         _applyCoordinator = applyCoordinator;
+        _variableFiles = variableFiles;
 
         ApplyElevationWindowGeometry();
 
@@ -355,12 +358,20 @@ internal partial class MainForm : Form
     /// <returns>The table the shortcut router dispatches through.</returns>
     private MainCommandTable CreateCommandSurfaces()
     {
+        var exportVariables = new MainCommand("Export variables…", [], ExportVariables, () => true);
+        var importVariables = new MainCommand("Import variables…", [], ImportVariables, () => true);
         var add = new MainCommand("Add", [Keys.Control | Keys.N], () => CreateEntryClicked(this, EventArgs.Empty), CanMutate);
         var edit = new MainCommand("Edit", [Keys.F2, Keys.Control | Keys.E], () => EditEntryClicked(this, EventArgs.Empty), () => CanMutate() && HasSelection());
         var delete = new MainCommand("Delete", [Keys.Delete], () => DeleteEntryClicked(this, EventArgs.Empty), () => CanMutate() && HasSelection());
         var refresh = new MainCommand("Refresh", [Keys.F5], () => RefreshEntryClicked(this, EventArgs.Empty), () => true);
         var apply = new MainCommand("Apply", [Keys.Control | Keys.S], () => Apply(this, EventArgs.Empty), () => _envService.HasChanges());
         var focusFilter = new MainCommand("Focus filter", [Keys.Control | Keys.F], FocusFilter, () => ActiveFilter() is not null);
+
+        // Menu-only commands: no toolbar button and no shortcut key, so the command surface stays
+        // six buttons wide and the shortcut router is untouched.
+        Project(exportVariables, null, fileToolStripMenuItem, 0);
+        Project(importVariables, null, fileToolStripMenuItem, 1);
+        fileToolStripMenuItem.DropDownItems.Insert(2, new ToolStripSeparator());
 
         var editMenu = new ToolStripMenuItem("Edit");
         menuStrip1.Items.Insert(1, editMenu);
@@ -373,21 +384,31 @@ internal partial class MainForm : Form
         editMenu.DropDownItems.Add(new ToolStripSeparator());
         Project(focusFilter, null, editMenu);
 
-        return new MainCommandTable([add, edit, delete, refresh, apply, focusFilter]);
+        return new MainCommandTable([exportVariables, importVariables, add, edit, delete, refresh, apply, focusFilter]);
     }
 
     /// <summary>
-    /// Shows one command in the Edit menu and mirrors its enablement onto the toolbar button that
-    /// already exists for it.
+    /// Shows one command in a menu and mirrors its enablement onto the toolbar button that already
+    /// exists for it.
     /// </summary>
     /// <param name="command">The command to project.</param>
     /// <param name="button">The toolbar button for the command, or null when the toolbar has none.</param>
     /// <param name="menu">The menu the command is listed in.</param>
-    private void Project(MainCommand command, ToolStripButton? button, ToolStripMenuItem menu)
+    /// <param name="index">Where to insert it, or null to append.</param>
+    private void Project(MainCommand command, ToolStripButton? button, ToolStripMenuItem menu, int? index = null)
     {
-        var item = new ToolStripMenuItem(command.Label) { ShortcutKeys = command.Shortcuts[0] };
+        var item = new ToolStripMenuItem(command.Label);
+
+        // A menu-only command has no shortcut to show.
+        if (command.Shortcuts.Length > 0)
+            item.ShortcutKeys = command.Shortcuts[0];
+
         item.Click += (_, _) => command.Execute();
-        menu.DropDownItems.Add(item);
+
+        if (index is { } position)
+            menu.DropDownItems.Insert(position, item);
+        else
+            menu.DropDownItems.Add(item);
 
         _commandTargets.Add((command, button is null ? [item] : [button, item]));
     }
@@ -417,6 +438,90 @@ internal partial class MainForm : Form
     {
         if (GetActiveGrid() is { } grid)
             RowActionHelper.Create(grid, _entryFormFactory);
+    }
+
+    /// <summary>
+    /// Writes both scopes' current values to a JSON file the user chooses: the file matches the
+    /// grid, and a row whose deletion is still pending is not backed up.
+    /// </summary>
+    private void ExportVariables()
+    {
+        var dialog = new CommonSaveFileDialog
+        {
+            DefaultFileName = $"enviro-variables-{DateTime.Now:yyyyMMdd}.json",
+            DefaultExtension = "json",
+        };
+        dialog.Filters.Add(new CommonFileDialogFilter("JSON files", "*.json"));
+
+        if (dialog.ShowDialog() != CommonFileDialogResult.Ok)
+            return;
+
+        if (_variableFiles.Save(dialog.FileName, _variableFiles.Snapshot(_envService)) is { } error)
+        {
+            DialogHelper.ShowError(error, "Export variables");
+            return;
+        }
+
+        ShowTransientStatus($"Exported variables to {Path.GetFileName(dialog.FileName)}");
+    }
+
+    /// <summary>
+    /// Merges a chosen file into the workspace: user entries always, machine entries only when this
+    /// session may write them. The file is reviewed in the grids like any other edit; Apply writes.
+    /// </summary>
+    private void ImportVariables()
+    {
+        var dialog = new CommonOpenFileDialog { Multiselect = false };
+        dialog.Filters.Add(new CommonFileDialogFilter("JSON files", "*.json"));
+
+        if (dialog.ShowDialog() != CommonFileDialogResult.Ok)
+            return;
+
+        var (file, error) = _variableFiles.Read(dialog.FileName);
+
+        if (file is null)
+        {
+            DialogHelper.ShowError(error ?? $"The variables could not be read from:\n{dialog.FileName}", "Import variables");
+            return;
+        }
+
+        var machineEntries = file.MachineEntries();
+        var machineSkipped = machineEntries.Count > 0
+            && !AdminChecker.CanMutate(EnvironmentalVariableType.Machine);
+
+        var user = _envService.User.Import(file.UserEntries());
+        var machine = machineSkipped
+            ? new ImportOutcome(0, 0, 0, machineEntries.Count)
+            : _envService.Machine.Import(machineEntries);
+
+        // Both imports raised their one list refresh, so the grids, the status strip and the
+        // corruption overlay are already up to date.
+        ShowTransientStatus(DescribeImport(user, machine, machineSkipped));
+    }
+
+    /// <summary>
+    /// Phrases one import for the transient status message, keeping it short enough for the strip.
+    /// </summary>
+    /// <param name="user">What the user scope's import did.</param>
+    /// <param name="machine">What the machine scope's import did (all skipped when it was gated).</param>
+    /// <param name="machineSkipped">Whether the machine section was skipped for lack of elevation.</param>
+    /// <returns>The message to show.</returns>
+    private static string DescribeImport(ImportOutcome user, ImportOutcome machine, bool machineSkipped)
+    {
+        var added = user.Added + machine.Added;
+        var overwritten = user.Overwritten + machine.Overwritten;
+        var unchanged = user.Unchanged + machine.Unchanged;
+        var skipped = user.Skipped + machine.Skipped;
+
+        var message = $"Imported {added + overwritten} {(added + overwritten == 1 ? "variable" : "variables")}: " +
+                      $"{added} added, {overwritten} updated, {unchanged} unchanged";
+
+        if (skipped > 0)
+            message += $", {skipped} skipped";
+
+        return machineSkipped
+            ? message + ". Machine section skipped — run as administrator."
+            : message + ".";
     }
 
     private void EditEntryClicked(object? sender, EventArgs e)

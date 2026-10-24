@@ -51,6 +51,7 @@ namespace enviro
             services.AddSingleton<IUpdateService, UpdateService>();
             services.AddSingleton<IEnvAdapter, EnvAdapter>();
             services.AddSingleton<IConfigService, ConfigService>();
+            services.AddSingleton<IVariableFileService, VariableFileService>();
 
             services.AddSingleton<MetadataRepository>();
 

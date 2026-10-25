@@ -393,6 +393,16 @@ internal partial class MainForm : Form
     private bool HasSelection() => GetActiveGrid() is { } grid && ControlHelper.GetCurrentModel(grid) is not null;
 
     /// <summary>
+    /// Whether the keyboard focus sits in a text box, where Delete and F2 must keep their normal
+    /// text-editing meaning instead of acting on the selected row.
+    /// </summary>
+    /// <remarks>
+    /// A container control's active control is the focused control itself, even when it is nested in
+    /// a tab page, so the form's ActiveControl is the filter box while the user types in it.
+    /// </remarks>
+    private bool FocusIsTextBox() => ActiveControl is TextBox;
+
+    /// <summary>
     /// The filter box of the active tab, from the factory that owns the grid→filter mapping.
     /// </summary>
     private TextBox? ActiveFilter() => GetActiveGrid() is { } grid ? _gridFactory.FilterOf(grid) : null;
@@ -418,8 +428,8 @@ internal partial class MainForm : Form
         var exportVariables = new MainCommand("Export variables…", [], ExportVariables, () => true);
         var importVariables = new MainCommand("Import variables…", [], ImportVariables, () => true);
         var add = new MainCommand("Add", [Keys.Control | Keys.N], () => CreateEntryClicked(this, EventArgs.Empty), CanMutate);
-        var edit = new MainCommand("Edit", [Keys.F2, Keys.Control | Keys.E], () => EditEntryClicked(this, EventArgs.Empty), () => CanMutate() && HasSelection());
-        var delete = new MainCommand("Delete", [Keys.Delete], () => DeleteEntryClicked(this, EventArgs.Empty), () => CanMutate() && HasSelection());
+        var edit = new MainCommand("Edit", [Keys.F2, Keys.Control | Keys.E], () => EditEntryClicked(this, EventArgs.Empty), () => CanMutate() && HasSelection() && !FocusIsTextBox());
+        var delete = new MainCommand("Delete", [Keys.Delete], () => DeleteEntryClicked(this, EventArgs.Empty), () => CanMutate() && HasSelection() && !FocusIsTextBox());
         var refresh = new MainCommand("Refresh", [Keys.F5], () => RefreshEntryClicked(this, EventArgs.Empty), () => true);
         var apply = new MainCommand("Apply", [Keys.Control | Keys.S], () => Apply(this, EventArgs.Empty), () => _envService.HasChanges());
         var focusFilter = new MainCommand("Focus filter", [Keys.Control | Keys.F], FocusFilter, () => ActiveFilter() is not null);

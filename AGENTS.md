@@ -1,0 +1,68 @@
+# AGENTS.md
+
+Enviro — a lightweight Windows environment-variable manager built with WinForms on .NET 10.
+
+## First steps (mandatory)
+
+1. Read this file (`AGENTS.md`) in full first.
+2. Then read [ARCHITECTURE.md](ARCHITECTURE.md) in full — it is the detailed design reference (DI lifetimes, startup sequence, state machine, user flows, error handling, known gotchas) and every change must fit it.
+3. **Do not execute anything on arrival.** Do not run commands, edit files, or start implementing until both documents have been read and the task is understood. Reading and locating the relevant code is the only work permitted before that point.
+4. **These docs (and [PLAN.md](PLAN.md)) are reference material, not task scripts.** Reading them never authorises running the commands they mention. Execute a listed command only when the current task needs it — normally one targeted build for the change you made — never the whole list, and never `dotnet run`, `dotnet publish`, or the manual smoke steps unless the user explicitly asked for them.
+
+## Project
+
+- Stack: C# / .NET 10 (`net10.0-windows`), WinForms, nullable enabled, implicit usings, DI via `Microsoft.Extensions.DependencyInjection`.
+- Entry point: `Program.cs` builds the `ServiceCollection` (all services/factories registered singleton, forms transient) and runs `MainForm`.
+- Windows-only: uses the registry through `Environment.SetEnvironmentVariable`, `System.Security.Principal`, and `WindowsAPICodePack` shell dialogs. Do not add cross-platform expectations.
+- Single project: `enviro.csproj`; solution is `enviro.slnx`. Version lives in `<Version>` in the csproj and is read by `MetadataRepository`.
+- `tests/` is ignored build output from an untracked test project — there is no test suite in this repo. Do not claim or run `dotnet test` as project verification.
+
+## Commands
+
+Reference commands, not a script to run in order. Run from the repo root (Windows; CI uses `windows-latest`):
+
+```bash
+dotnet restore enviro.slnx
+dotnet build enviro.slnx --configuration Release --no-restore
+dotnet run --project enviro.csproj            # launch the app
+dotnet publish enviro.slnx --configuration Release --output ./publish/win-x64 \
+  --runtime win-x64 --self-contained true /p:PublishSingleFile=true
+```
+
+On non-Windows hosts a build additionally needs `-p:EnableWindowsTargeting=true` (and a writable NuGet cache); the app itself still only runs on Windows.
+
+## Architecture
+
+- `Program.cs` — composition root; DI wiring (including the `Func<AboutForm>` factory the shell uses) and app-exit config save.
+- `Forms/` — `MainForm` is the shell: layout, event wiring, the command table and the calls into the extracted pieces (window geometry, the status presenter, the apply coordinator); `AbstractEntryForm` base for `CreateForm`/`EditForm` (both presentation only: input validation, the one override prompt and the service call — the create/edit rules live in the scope; the base also owns the shared PATH entries mode and the multi-select folder browse), `PathEntriesControl` (segment view inside the entry dialogs), `VariableFileForm` (the modal entry review shared by import and export), `UpdateForm`, `AboutForm`. Designer files are generated/edited by the WinForms designer; keep `.Designer.cs` and `.resx` in sync.
+- `Factories/` — build UI pieces: `TabFactory` (tab + grid), `EnvGridFactory` (DataGridView: binding to a scope's rows, sorting — the refill is `IEnvScope.Sort` — context menu wiring, requesting corrupted-path scans), `ContextMenuFactory` (row actions: edit/delete/restore/reset/copy), `RowActionHelper` (shared scope-guarded create/edit/delete used by the menu, toolbar and shortcuts), `EntryFormFactory` (create/edit dialogs, each bound to one `IEnvScope`).
+- `Services/` — `EnvService` owns two `IEnvScope`s (`User`, `Machine`), each holding its `BindingList<EnvModel>` rows and the scope-bound operations (add/update/upsert/apply-edit/import/delete/contains/get/reset/restore, plus the create/edit rules `Upsert` and `ApplyEdit`, the merge rule `Import`, `MarkApplied` and `Sort`); the rows leave the scope read-only, as `IBindingList`. `EnvAdapter` applies Added/Modified/Deleted states to the system and asks each scope to clean the rows it wrote; `ApplyCoordinator` orchestrates an apply run (pending count, adapter call, success/failure text) and returns what to show, holding no UI; `ConfigService` reads/writes `%APPDATA%\Enviro\config.json` (a legacy `config.json` beside the executable is read once for migration); `VariableFileService` reads/writes the import/export JSON document, builds its snapshot and compares a read file with the workspace for the entry-review window (the merge is `IEnvScope.Import`); `UpdateService` calls the GitHub releases API; `CorruptedPathService` owns corrupted-path validation (per-segment verdict, debounced scans off the UI thread) and is the only writer of `EnvModel.IsCorrupted`; `AppLog` is the single failure log; `MetadataRepository` derives app/repo URLs from assembly attributes.
+- `Models/` — `EnvModel` (`Name`, `OriginalName`, `Path`, `OriginalPath`, `State`, `IsCorrupted`), `ConfigModel`, and the `EnvironmentalVariableType` (User/Machine) / `EnvironmentalVariableState` enums.
+- `Static/` — stateless helpers: `AdminChecker` (elevation guard; admin state cached once per process), `DialogHelper`, `ControlHelper` (grid selection + the scope carried by a tab's `Tag`), `ClipboardHelper`, `GridStyleHelper` (state colours/sorting), `StateCounter` (status-strip counts), `StatusPresenter` (the status strip's per-refresh strings, from the service state + config; the elevation label is written once), `ThemePalette` (the light and dark palettes — the only place a colour is named), `ThemeArtwork` (recolours the monochrome logo with the palette's ink), `ValidationHelper` (input rules, the `;` list split/join, per-segment path predicates and the folder-vs-file test), `ReleaseNotesFormatter` (GitHub's Markdown release body → readable plain text for the update dialog), `EnvTypeConverter`, `WindowGeometry` (`--window-bounds` parsing + the screen check, with the screen list passed in); and `MainCommand`/`MainCommandTable` — the shell's command table (label, shortcut `Keys` — empty for a menu-only command — one action, one `CanExecute` predicate), holding no controls so the toolbar buttons, the File, Variables and View menus and `ProcessCmdKey` are all projections of it (`Keys` is the one WinForms type it names).
+
+Data flow: grids bind to an `IEnvScope`'s rows → dialogs/context menu call that scope's operations, which mutate models and set `State` → `MainForm.Apply` calls `ApplyCoordinator.ApplyAsync()` → `EnvAdapter` writes the system registry and each written row is cleaned by its scope (`MarkApplied`) back to `Unchanged`.
+
+## Conventions
+
+- Newer C# style: file-scoped namespaces (except a few older braced ones), primary constructors for DI (`internal sealed class EnvAdapter(IEnvService _es)`), collection expressions (`[]`, `[a, b]`), and the `field` keyword in properties.
+- Interfaces live in the same file as their implementation (e.g. `IEnvService` + `EnvService`), one concept per file. Most types are `internal`.
+- Services/factories/models carry XML doc comments; match that when adding public/internal members.
+- Models implement `INotifyPropertyChanged` and only raise change events when the value actually changes (`if (field != value)`).
+- All user-facing messages go through `DialogHelper`; no direct `MessageBox.Show` in feature code.
+- Failures go through the single log funnel (`IAppLog` → `%APPDATA%\Enviro\enviro.log`, one rotated backup, 256 KB cap) instead of being swallowed: pass the caught exception to `AppLog.Error`. `Program.Main` builds the log before the container and installs the `Application.ThreadException` / `AppDomain.UnhandledException` handlers, which log one entry and show one `DialogHelper` error naming the log path. Do not add a second logging mechanism or any telemetry.
+- Machine-scope mutations must be guarded by `AdminChecker.CanMutate` / `AdminChecker.ValidateTab`; context menus additionally hide mutating items via `CanMutate` when the scope is not elevated. The rule has one implementation — `CanMutate(EnvironmentalVariableType)` — and the control overload resolves the scope and delegates, so non-UI callers ask `CanMutate(scope)` instead of checking `IsAdmin()` themselves. Scope comes from the tab's `Tag` (`TabFactory` sets it), never from its text, and the guards fail closed when a control has none — never default an unknown control to `User`.
+- A user command is defined once, in the command table (`Static/MainCommand.cs`): never add a shortcut in `ProcessCmdKey` or an enablement check in an event handler. `MainForm` projects each command onto its toolbar button and its menu — the Variables menu for the object commands, the View menu for Refresh/Focus filter, or the File menu for the menu-only Export/Import/Restart-as-administrator commands, whose shortcut array is empty — and refreshes them from `UpdateActionState()`; a shortcut only fires through `MainCommandTable.TryExecute`, so a disabled button and its shortcut always agree.
+- Change tracking is state-based (`Unchanged`/`Added`/`Modified`/`Deleted`) — update `State` through the row's `IEnvScope` rather than editing the list directly; nothing outside `EnvService`/`EnvScope` adds, removes or reorders rows. Corrupted-path detection is a separate overlay (`EnvModel.IsCorrupted`): it never changes `State`, so Apply/Reset/Restore are unaffected by it.
+- Create and edit go through one scope call each, and the rules belong to the scope, not the dialog: `IEnvScope.Upsert(name, value, overwrite)` resolves the create path (`UpsertOutcome.Added` / `Overridden` / `Refused` — refused mutates nothing) and never prompts; `IEnvScope.ApplyEdit(model, newName, newValue)` resolves the edit path in one step and returns the edited row or a rejection reason (blank name, collision, unknown row, `Deleted` row), touching nothing when it rejects. Forms validate, ask the single confirm prompt and show the returned reason through `DialogHelper`. `Rename` is private to `EnvScope` and reached only through `ApplyEdit` — there is no public void rename.
+- Name lookups, duplicate checks and rename collisions are case-insensitive (`StringComparison.OrdinalIgnoreCase`), matching Windows variable-name semantics.
+- Corrupted-path validation is opt-in via `ConfigModel.EnableCorruptedValidation`; toggling it is live (both scopes rescanned at once, immediate config save, no restart). The scan runs through `ICorruptedPathService`: on a worker thread over a snapshot, debounced per scope, with the result applied on the UI thread and only where the row still holds the scanned value. Consumers ask the service for a scan; they never call `Directory.Exists` on their own.
+- Colours come from `Static/ThemePalette`: a row's state/corruption backgrounds, the selection text, the grid background, cell text, grid lines, header colours, the logo ink, link colours, PATH verdict colours, file-entry statuses and muted text are palette lookups. Feature code names no colour literal and `SystemColors` is used only where a standard control expects a system colour; a new colour goes into both palettes. The active palette follows the colour mode `Program.Main` applied at startup. Grid chrome is applied through `GridStyleHelper.ApplyGridTheme`; the dark palette turns the OS header painter off because it ignores dark mode. The monochrome logo is black artwork, so dialogs that show it recolour it through `ThemeArtwork.Tint`. The light palette keeps the system link colours; the dark one supplies its own (`SystemLinkColours`).
+- `ConfigModel.Theme` (`ThemePreference`: `System`/`Light`/`Dark`) is a persisted setting resolved once in `Program.Main` before `MainForm` exists and passed to `Application.SetColorMode`; changing it takes effect on the next start. The Options → Theme submenu writes it, saves immediately and shows one restart notice. The colour-mode API is experimental (`WFO5001`), so the warning is suppressed with a local `#pragma` instead of a csproj change.
+- Match existing formatting: 4-space indent, `var` where the type is evident, expression-bodied one-liners for small helpers.
+- The shell's toolbar is text-only by design (the project ships no icon set): keep `toolStrip1`'s buttons `DisplayStyle = Text` and `AutoSize`, and keep per-button `Size` values out of `MainForm.resx` so a localized or DPI-scaled label cannot clip. Separators on the strip are decoration and never enter the command table.
+
+## Notes
+
+- [ARCHITECTURE.md](ARCHITECTURE.md) has the detailed design reference: DI lifetimes, startup sequence, state machine, every user flow, error handling, and known gotchas.
+- **Keep the docs in sync:** whenever a change affects the software's architecture (services, factories, models, DI wiring, data flow, state machine, UI composition, error handling, or any other behavior described in [ARCHITECTURE.md](ARCHITECTURE.md)), update the affected sections of `ARCHITECTURE.md` — and `AGENTS.md` where its conventions/architecture summary is affected — in the same change. Do not leave documentation describing the old design.
+- **Name the PR:** after finishing a change, propose a pull-request title (and a short body) for it, matching the history style `scope: lowercase description` (e.g. `gridfactory: fix program crash …`). Base it on the **staged** changes (`git diff --cached`), not the working tree; mention build/doc changes when they are part of the staged set. If nothing is staged, say so and ask which changes belong in the PR instead of guessing.

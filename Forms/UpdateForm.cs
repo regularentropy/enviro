@@ -12,6 +12,10 @@ internal partial class UpdateForm : Form
         _updateResponse = ur;
         InitializeComponent();
 
+        // The release URL arrives from the GitHub response, so only a plain http(s) address may reach
+        // the shell; anything else leaves the action unavailable instead of a dead click or a crash.
+        openReleaseButton.Enabled = IsOpenableUrl(_updateResponse.LastReleaseURL);
+
         // This is a normal window, so it shows a title-bar icon; use the app's icon instead of the
         // WinForms default.
         Icon = Properties.Resources.favicon;
@@ -36,4 +40,11 @@ internal partial class UpdateForm : Form
     {
         Process.Start(new ProcessStartInfo(_updateResponse.LastReleaseURL) { UseShellExecute = true });
     }
+
+    /// <summary>
+    /// Determines whether <paramref name="url"/> is an absolute http or https URI that is safe to open
+    /// through the shell.
+    /// </summary>
+    private static bool IsOpenableUrl(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https";
 }

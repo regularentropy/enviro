@@ -140,14 +140,17 @@ internal sealed class EnvGridFactory : IEnvGridFactory
             // Rows may have been added, removed or reordered; keep the filter applied.
             ApplyFilter(grid);
 
-            // The overlay write is itself a list change; only value changes ask for a new scan.
-            if (e.ListChangedType == ListChangedType.ItemChanged
-                && e.PropertyDescriptor?.Name == nameof(EnvModel.IsCorrupted))
+            if (e.ListChangedType == ListChangedType.ItemChanged)
             {
-                // IsCorrupted has no bound column, so DataGridView repaints no cell for it and the
-                // row keeps its old colour until something else invalidates the grid.
-                grid.Invalidate();
-                return;
+                // State and IsCorrupted have no bound column, so DataGridView repaints no cell
+                // for them and the row keeps its old colour until something else invalidates the
+                // grid. A state change carries no new value, so it asks for no scan either; a
+                // reset or restore still reaches the scan through its Name/Path changes.
+                if (e.PropertyDescriptor?.Name is nameof(EnvModel.IsCorrupted) or nameof(EnvModel.State))
+                {
+                    grid.Invalidate();
+                    return;
+                }
             }
 
             _corruption.RequestScan(scope);

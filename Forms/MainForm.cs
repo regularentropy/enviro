@@ -99,16 +99,6 @@ internal partial class MainForm : Form
         _commands = CreateCommandSurfaces();
         UpdateActionState();
 
-        var corruptedVarsButton = new ToolStripMenuItem("Check for corrupted variables")
-        {
-            CheckOnClick = true,
-            CheckState = _configService.Config.EnableCorruptedValidation ? CheckState.Checked : CheckState.Unchecked,
-            ToolTipText = "Checks whether a variable points to a path or file that doesn't exist."
-        };
-
-        corruptedVarsButton.CheckedChanged += CorruptedVarsButtonClicked;
-        optionsToolStripMenuItem.DropDownItems.Add(corruptedVarsButton);
-        optionsToolStripMenuItem.DropDownItems.Add(new ToolStripSeparator());
         optionsToolStripMenuItem.DropDownItems.Add(CreateThemeMenu());
     }
 
@@ -133,6 +123,27 @@ internal partial class MainForm : Form
         }
 
         return menu;
+    }
+
+    /// <summary>
+    /// Builds the View menu's checkable corrupted-validation setting from the persisted preference.
+    /// </summary>
+    /// <remarks>
+    /// The toggle is a setting, not a command: it has no shortcut, no toolbar button and no
+    /// enablement predicate, so it stays out of the command table.
+    /// </remarks>
+    /// <returns>The checkable item, with its toggle handler attached.</returns>
+    private ToolStripMenuItem CreateCorruptedValidationMenu()
+    {
+        var item = new ToolStripMenuItem("Check for corrupted variables")
+        {
+            CheckOnClick = true,
+            CheckState = _configService.Config.EnableCorruptedValidation ? CheckState.Checked : CheckState.Unchecked,
+            ToolTipText = "Checks whether a variable points to a path or file that doesn't exist."
+        };
+
+        item.CheckedChanged += CorruptedVarsButtonClicked;
+        return item;
     }
 
     /// <summary>
@@ -420,7 +431,8 @@ internal partial class MainForm : Form
     }
 
     /// <summary>
-    /// Defines every command once and projects it onto the toolbar buttons and a new Edit menu.
+    /// Defines every command once and projects it onto the toolbar buttons and the Variables and
+    /// View menus.
     /// </summary>
     /// <returns>The table the shortcut router dispatches through.</returns>
     private MainCommandTable CreateCommandSurfaces()
@@ -440,16 +452,21 @@ internal partial class MainForm : Form
         Project(importVariables, null, fileToolStripMenuItem, 1);
         fileToolStripMenuItem.DropDownItems.Insert(2, new ToolStripSeparator());
 
-        var editMenu = new ToolStripMenuItem("Edit");
-        menuStrip1.Items.Insert(1, editMenu);
+        // Both menus are inserted after File and ahead of the designer's Options and Help menus.
+        var variablesMenu = new ToolStripMenuItem("Variables");
+        menuStrip1.Items.Insert(1, variablesMenu);
 
-        Project(add, addToolStripButton, editMenu);
-        Project(edit, editToolStripButton, editMenu);
-        Project(delete, deleteToolStripButton, editMenu);
-        Project(refresh, refreshToolStripButton, editMenu);
-        Project(apply, applyToolStripButton, editMenu);
-        editMenu.DropDownItems.Add(new ToolStripSeparator());
-        Project(focusFilter, null, editMenu);
+        Project(add, addToolStripButton, variablesMenu);
+        Project(edit, editToolStripButton, variablesMenu);
+        Project(delete, deleteToolStripButton, variablesMenu);
+        Project(apply, applyToolStripButton, variablesMenu);
+
+        var viewMenu = new ToolStripMenuItem("View");
+        menuStrip1.Items.Insert(2, viewMenu);
+
+        Project(refresh, refreshToolStripButton, viewMenu);
+        Project(focusFilter, null, viewMenu);
+        viewMenu.DropDownItems.Add(CreateCorruptedValidationMenu());
 
         return new MainCommandTable([exportVariables, importVariables, add, edit, delete, refresh, apply, focusFilter]);
     }

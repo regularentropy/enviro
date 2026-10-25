@@ -43,16 +43,19 @@ Colour mode is also chosen once, in `Program.Main` before the first window exist
 
 ```
 enviro/
-├── Program.cs                     Composition root / application entry point
-├── enviro.csproj                  Single project; version + package refs live here
 ├── enviro.slnx                    Solution (one project)
 ├── global.json                    Pins .NET SDK 10.0.0 with latestMajor roll-forward
-├── Models/
+├── docs/
+│   └── screenshot.png             README screenshot
+└── src/enviro/                    The single project
+    ├── enviro.csproj              Version + package refs live here
+    ├── Program.cs                 Composition root / application entry point
+    ├── Models/
 │   ├── EnvModel.cs                Observable environment-variable record
 │   ├── ConfigModel.cs             Observable persisted settings + the ThemePreference enum
 │   ├── EnvironmentalVariableTypes.cs     User/Machine enum
 │   └── EnvironmentalVariableState.cs     Unchanged/Added/Modified/Deleted
-├── Services/
+    ├── Services/
 │   ├── EnvService.cs              The two scopes (Service) + one scope's rows and operations
 │   ├── EnvAdapter.cs              Applies tracked states to Windows
 │   ├── ApplyCoordinator.cs        Apply orchestration: pending count, adapter run, outcome text
@@ -62,13 +65,13 @@ enviro/
 │   ├── UpdateService.cs           GitHub release check
 │   ├── AppLog.cs                  The single failure log (%APPDATA%\Enviro\enviro.log)
 │   └── MetadataRepository.cs      Assembly-derived title/author/version/URLs
-├── Factories/
+    ├── Factories/
 │   ├── TabFactory.cs              TabPage creation
 │   ├── EnvGridFactory.cs          DataGridView construction + wiring
 │   ├── ContextMenuFactory.cs      Per-row ContextMenuStrip
 │   ├── RowActionHelper.cs         Shared scope-guarded create/edit/delete
 │   └── EntryFormFactory.cs        Create/Edit form construction
-├── Forms/
+    ├── Forms/
 │   ├── MainForm.cs/.Designer.cs/.resx
 │   ├── AbstractEntryForm.cs/.Designer.cs/.resx   Shared name/path dialog base
 │   ├── CreateForm.cs, EditForm.cs               Concrete entry dialogs
@@ -76,7 +79,7 @@ enviro/
 │   ├── VariableFileForm.cs/.Designer.cs/.resx   Import/export entry review window
 │   ├── UpdateForm.cs/.Designer.cs/.resx
 │   └── AboutForm.cs/.Designer.cs/.resx
-├── Static/
+    ├── Static/
 │   ├── AdminChecker.cs            Elevation detection + Machine-tab guard
 │   ├── DialogHelper.cs            MessageBox wrappers
 │   ├── ControlHelper.cs           Grid/tab introspection
@@ -90,7 +93,8 @@ enviro/
 │   ├── WindowGeometry.cs          --window-bounds parsing + the screen check
 │   ├── MainCommand.cs             The shell's command table (labels, shortcuts, actions, enablement)
 │   └── EnvTypeConverter.cs        Enum → EnvironmentVariableTarget
-└── Properties/                    Resources, launch settings
+    ├── Resources/                 favicon.ico, the logo image (embedded by the resx)
+    └── Properties/                Resources, launch settings
 ```
 
 `bin/`, `obj/`, `.vs/`, `tests/`, `enviro.csproj.user` and `config.json` are not tracked.

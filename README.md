@@ -5,7 +5,7 @@
 
 A lightweight environment variable manager for Windows with a classic interface.
 
-![Screenshot](screenshot.png)
+![Screenshot](docs/screenshot.png)
 
 ## Why does this exist?
 
@@ -18,10 +18,9 @@ Enviro addresses these issues with a classic Windows interface and a change trac
 - 🎯 **Native WinForms**: Built with Windows Forms for a smaller binary size & performance.
 - 📋 **Change Tracking**: See exactly what was modified, deleted, or created in your environment variables.
 - ✅ **Path Validation**: Detects environment variables pointing to invalid/non-existent paths.
+- 💾 **Import/Export**: Back up and restore your environment variables to a JSON file, choosing exactly which variables travel.
+- 🌓 **Theme Support**: Follows the Windows light/dark mode, with a System/Light/Dark choice in Options that applies on the next start.
 - ⚡ **Instant Apply**: Changes take effect immediately without system restart.
-
-## Roadmap
-- 🚧 **Import/Export System**: Backup and restore your environment variables
 
 ## Requirements
 
@@ -52,6 +51,20 @@ Pull requests are welcome. For major changes, open an issue first to discuss wha
 Build requirements:
 - Visual Studio 2026 or later
 - .NET 10 SDK
+
+From source:
+
+```shell
+git clone https://github.com/regularentropy/enviro.git
+cd enviro
+dotnet run --project src/enviro/enviro.csproj
+```
+
+Self-contained single-file build:
+
+```shell
+dotnet publish enviro.slnx --configuration Release --output ./publish/win-x64 --runtime win-x64 --self-contained true /p:PublishSingleFile=true
+```
 
 ## Used Assets
 - Logo: https://www.svgrepo.com/svg/532995/pen-square

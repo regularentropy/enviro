@@ -14,7 +14,7 @@ Enviro — a lightweight Windows environment-variable manager built with WinForm
 - Stack: C# / .NET 10 (`net10.0-windows`), WinForms, nullable enabled, implicit usings, DI via `Microsoft.Extensions.DependencyInjection`.
 - Entry point: `Program.cs` builds the `ServiceCollection` (all services/factories registered singleton, forms transient) and runs `MainForm`.
 - Windows-only: uses the registry through `Environment.SetEnvironmentVariable`, `System.Security.Principal`, and `WindowsAPICodePack` shell dialogs. Do not add cross-platform expectations.
-- Single project: `enviro.csproj`; solution is `enviro.slnx`. Version lives in `<Version>` in the csproj and is read by `MetadataRepository`.
+- Single project: `src/enviro/enviro.csproj`; solution is `enviro.slnx` (at the repo root). Version lives in `<Version>` in the csproj and is read by `MetadataRepository`.
 - `tests/` is ignored build output from an untracked test project — there is no test suite in this repo. Do not claim or run `dotnet test` as project verification.
 
 ## Commands
@@ -24,7 +24,7 @@ Reference commands, not a script to run in order. Run from the repo root (Window
 ```bash
 dotnet restore enviro.slnx
 dotnet build enviro.slnx --configuration Release --no-restore
-dotnet run --project enviro.csproj            # launch the app
+dotnet run --project src/enviro/enviro.csproj  # launch the app
 dotnet publish enviro.slnx --configuration Release --output ./publish/win-x64 \
   --runtime win-x64 --self-contained true /p:PublishSingleFile=true
 ```

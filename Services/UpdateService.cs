@@ -37,6 +37,12 @@ internal sealed class UpdateService(MetadataRepository _mr, IAppLog _log) : IUpd
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(10);
 
     /// <summary>
+    /// The client every check shares: one connection pool for the process lifetime, never disposed.
+    /// The user agent is set per request, because it carries the running title.
+    /// </summary>
+    private static readonly HttpClient Client = new() { Timeout = RequestTimeout };
+
+    /// <summary>
     /// Checks for available updates by querying the GitHub API for the latest release.
     /// Compares the latest version with the current application version.
     /// </summary>
@@ -46,10 +52,10 @@ internal sealed class UpdateService(MetadataRepository _mr, IAppLog _log) : IUpd
     /// <exception cref="OperationCanceledException">Thrown when the request is cancelled or times out.</exception>
     public async Task<UpdateResponse?> CheckForUpdatesAsync(CancellationToken cancellationToken = default)
     {
-        using var http = new HttpClient { Timeout = RequestTimeout };
-        http.DefaultRequestHeaders.UserAgent.ParseAdd(_mr.Title);
+        using var request = new HttpRequestMessage(HttpMethod.Get, _mr.APILink);
+        request.Headers.UserAgent.ParseAdd(_mr.Title);
 
-        var response = await http.GetAsync(_mr.APILink, cancellationToken).ConfigureAwait(false);
+        using var response = await Client.SendAsync(request, cancellationToken).ConfigureAwait(false);
 
         if (!response.IsSuccessStatusCode)
         {

@@ -1,4 +1,5 @@
-﻿using enviro.Services;
+﻿using enviro.Models;
+using enviro.Services;
 using enviro.Static;
 
 namespace enviro.Forms;
@@ -27,7 +28,12 @@ internal partial class CreateForm : AbstractEntryForm
 
         if (existing is not null)
         {
-            var res = DialogHelper.ShowConfirm($"'{existing.Name}' already exists with value:\n{existing.Path}\n\nOverride?");
+            // A pending deletion is not in the registry, and creating over it restores the row.
+            var message = existing.State == EnvironmentalVariableState.Deleted
+                ? $"'{existing.Name}' is marked for deletion.\n\nCreating it restores the row with the value:\n{path}\n\nContinue?"
+                : $"'{existing.Name}' already exists with value:\n{existing.Path}\n\nOverride?";
+
+            var res = DialogHelper.ShowConfirm(message);
 
             if (res != DialogResult.OK)
                 return;

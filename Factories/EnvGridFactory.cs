@@ -103,11 +103,7 @@ internal sealed class EnvGridFactory : IEnvGridFactory
         grid.ColumnHeadersDefaultCellStyle.Font = new Font(grid.Font, FontStyle.Bold);
         grid.ColumnHeadersDefaultCellStyle.Padding = new Padding(4, 2, 4, 2);
 
-#if DEBUG
-        grid.AutoGenerateColumns = true;
-#else
         grid.AutoGenerateColumns = false;
-#endif
 
         grid.Columns.AddRange([
             new DataGridViewTextBoxColumn()

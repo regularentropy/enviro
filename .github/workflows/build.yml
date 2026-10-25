@@ -16,7 +16,7 @@ jobs:
       - name: Build
         run: dotnet build enviro.slnx --configuration Release --no-restore
       - name: Publish
-        run: dotnet publish enviro.slnx --configuration Release --output ./publish/win-x64 --runtime win-x64 --self-contained true /p:PublishSingleFile=true
+        run: dotnet publish enviro.slnx --configuration Release --output ./publish/win-x64 --runtime win-x64 --self-contained true /p:PublishSingleFile=true /p:DebugType=none
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:

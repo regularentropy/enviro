@@ -16,6 +16,7 @@
 	<SignAssembly>True</SignAssembly>
 	  
 	<ApplicationIcon>Resources\favicon.ico</ApplicationIcon>
+	<DebugType>embedded</DebugType>
   </PropertyGroup>
 
   <ItemGroup>

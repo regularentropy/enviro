@@ -70,7 +70,7 @@ internal sealed class TabFactory(IEnvGridFactory gridFactory) : ITabFactory
         var banner = new Panel
         {
             Dock = DockStyle.Top,
-            BackColor = SystemColors.Info,
+            BackColor = ThemePalette.InfoBackground,
             Padding = new Padding(8, 4, 8, 4),
         };
 

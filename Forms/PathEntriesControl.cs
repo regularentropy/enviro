@@ -38,6 +38,7 @@ internal partial class PathEntriesControl : UserControl
 
         // Follow the font/DPI size like the main grid instead of a fixed pixel height.
         segmentsGrid.RowTemplate.Height = segmentsGrid.Font.Height + 12;
+        GridStyleHelper.ApplyGridTheme(segmentsGrid);
 
         segmentsGrid.SelectionChanged += (_, _) => UpdateActionState();
         segmentsGrid.CellValueChanged += GridCellValueChanged;
@@ -105,24 +106,24 @@ internal partial class PathEntriesControl : UserControl
         var row = segmentsGrid.Rows[rowIndex];
         var value = row.Cells[valueColumn.Index].Value?.ToString() ?? string.Empty;
         var cell = row.Cells[existenceColumn.Index];
+        var verdict = _corruption?.ValidateSegment(value) ?? PathSegmentState.NotPath;
 
-        switch (_corruption?.ValidateSegment(value) ?? PathSegmentState.NotPath)
+        switch (verdict)
         {
             case PathSegmentState.Exists:
                 cell.Value = ExistsText;
-                cell.Style.ForeColor = Color.ForestGreen;
                 break;
 
             case PathSegmentState.Missing:
                 cell.Value = MissingText;
-                cell.Style.ForeColor = Color.Firebrick;
                 break;
 
             default:
                 cell.Value = NotPathText;
-                cell.Style.ForeColor = SystemColors.GrayText;
                 break;
         }
+
+        cell.Style.ForeColor = ThemePalette.SegmentText(verdict);
     }
 
     /// <summary>

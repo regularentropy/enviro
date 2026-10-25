@@ -1,5 +1,5 @@
-using enviro.Models;
 using enviro.Services;
+using enviro.Static;
 
 namespace enviro.Forms;
 
@@ -57,6 +57,7 @@ internal sealed partial class VariableFileForm : Form
 
         // Follow the font/DPI size like the main grid instead of a fixed pixel height.
         entriesGrid.RowTemplate.Height = entriesGrid.Font.Height + 12;
+        GridStyleHelper.ApplyGridTheme(entriesGrid);
         entriesGrid.CurrentCellDirtyStateChanged += GridCurrentCellDirtyStateChanged;
         entriesGrid.CellValueChanged += GridCellValueChanged;
 
@@ -99,7 +100,7 @@ internal sealed partial class VariableFileForm : Form
                 continue;
 
             row.Cells[selectedColumn.Index].ReadOnly = true;
-            row.DefaultCellStyle.ForeColor = SystemColors.GrayText;
+            row.DefaultCellStyle.ForeColor = ThemePalette.MutedText;
         }
     }
 
@@ -133,24 +134,20 @@ internal sealed partial class VariableFileForm : Form
     };
 
     /// <summary>
-    /// Colours the status the way the main grid colours a change: green for a new row, yellow for
-    /// one it replaces, grey for anything that is not carried.
+    /// Colours the status the way the main grid colours a change, from the active theme palette:
+    /// green for a new row, yellow for one it replaces, the grid background for anything that is
+    /// not carried.
     /// </summary>
     /// <param name="cell">The status cell to style.</param>
     /// <param name="status">The entry's status.</param>
     private static void StyleStatus(DataGridViewCell cell, VariableFileEntryStatus? status)
     {
-        cell.Style.BackColor = status switch
-        {
-            VariableFileEntryStatus.New => Color.LightGreen,
-            VariableFileEntryStatus.Overwrites => Color.LightYellow,
-            _ => Color.White,
-        };
+        cell.Style.BackColor = ThemePalette.FileStatusBackground(status);
 
         if (status is VariableFileEntryStatus.Unchanged
             or VariableFileEntryStatus.Skipped
             or VariableFileEntryStatus.MachineSkipped)
-            cell.Style.ForeColor = SystemColors.GrayText;
+            cell.Style.ForeColor = ThemePalette.MutedText;
     }
 
     /// <summary>

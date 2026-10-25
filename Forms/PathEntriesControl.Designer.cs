@@ -64,7 +64,6 @@ partial class PathEntriesControl
         segmentsGrid.AllowUserToAddRows = false;
         segmentsGrid.AllowUserToDeleteRows = false;
         segmentsGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
-        segmentsGrid.BackgroundColor = Color.White;
         segmentsGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
         segmentsGrid.Columns.AddRange(new DataGridViewColumn[] { valueColumn, existenceColumn });
         segmentsGrid.Dock = DockStyle.Fill;

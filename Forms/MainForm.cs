@@ -45,6 +45,10 @@ internal partial class MainForm : Form
     {
         InitializeComponent();
 
+        // A Form shows the WinForms default icon unless told otherwise; use the app's icon so the
+        // title bar and taskbar match the executable's embedded icon.
+        Icon = Properties.Resources.favicon;
+
         _tabFactory = tf;
         _gridFactory = gf;
         _updateService = us;
@@ -104,6 +108,59 @@ internal partial class MainForm : Form
 
         corruptedVarsButton.CheckedChanged += CorruptedVarsButtonClicked;
         optionsToolStripMenuItem.DropDownItems.Add(corruptedVarsButton);
+        optionsToolStripMenuItem.DropDownItems.Add(new ToolStripSeparator());
+        optionsToolStripMenuItem.DropDownItems.Add(CreateThemeMenu());
+    }
+
+    /// <summary>
+    /// Builds the Options → Theme radio menu from the persisted preference.
+    /// </summary>
+    /// <returns>The submenu listing the three preferences.</returns>
+    private ToolStripMenuItem CreateThemeMenu()
+    {
+        var menu = new ToolStripMenuItem("Theme");
+
+        foreach (var theme in Enum.GetValues<ThemePreference>())
+        {
+            var item = new ToolStripMenuItem(theme.ToString())
+            {
+                Checked = _configService.Config.Theme == theme,
+                Tag = theme,
+            };
+
+            item.Click += ThemeItemClicked;
+            menu.DropDownItems.Add(item);
+        }
+
+        return menu;
+    }
+
+    /// <summary>
+    /// Stores a new theme choice and says when it applies; nothing is recoloured live, because the
+    /// colour mode is fixed once a window exists.
+    /// </summary>
+    private void ThemeItemClicked(object? sender, EventArgs e)
+    {
+        if (sender is not ToolStripMenuItem { Tag: ThemePreference theme } item
+            || item.OwnerItem is not ToolStripMenuItem menu)
+            return;
+
+        // WinForms menu items have check marks, not radio buttons; writing every sibling makes the
+        // three exclusive so the menu reads like the one-of-three choice it is.
+        foreach (var sibling in menu.DropDownItems.OfType<ToolStripMenuItem>())
+            sibling.Checked = ReferenceEquals(sibling, item);
+
+        if (_configService.Config.Theme == theme)
+            return;
+
+        _configService.Config.Theme = theme;
+
+        // Persist immediately like the corruption toggle, so the choice survives even a crash.
+        _configService.Save();
+
+        DialogHelper.ShowInfo(
+            $"The {item.Text} theme will be used the next time Enviro starts.",
+            "Theme");
     }
 
     private void CorruptedVarsButtonClicked(object? sender, EventArgs e)

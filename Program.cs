@@ -70,6 +70,10 @@ namespace enviro
 
             var configManager = provider.GetRequiredService<IConfigService>();
 
+            // The colour mode is applied per window, so it must be chosen before MainForm exists;
+            // a changed setting is therefore only seen on the next start.
+            ApplyTheme(configManager.Config.Theme);
+
             var mainForm = provider.GetRequiredService<MainForm>();
 
             // Saving config only when it was changed
@@ -79,6 +83,24 @@ namespace enviro
             };
 
             Application.Run(mainForm);
+        }
+
+        /// <summary>
+        /// Applies the persisted theme before the first window exists.
+        /// </summary>
+        /// <param name="theme">The preference read from the settings.</param>
+        private static void ApplyTheme(ThemePreference theme)
+        {
+            // The colour-mode API is experimental; the warning is suppressed here instead of
+            // changing the csproj.
+#pragma warning disable WFO5001
+            Application.SetColorMode(theme switch
+            {
+                ThemePreference.Light => SystemColorMode.Classic,
+                ThemePreference.Dark => SystemColorMode.Dark,
+                _ => SystemColorMode.System,
+            });
+#pragma warning restore WFO5001
         }
     }
 }

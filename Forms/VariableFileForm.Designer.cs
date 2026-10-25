@@ -98,7 +98,6 @@ namespace enviro.Forms
             entriesGrid.AllowUserToDeleteRows = false;
             entriesGrid.AllowUserToResizeRows = false;
             entriesGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
-            entriesGrid.BackgroundColor = Color.White;
             entriesGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             entriesGrid.Columns.AddRange(new DataGridViewColumn[] { selectedColumn, scopeColumn, nameColumn, valueColumn, currentValueColumn, statusColumn });
             entriesGrid.Dock = DockStyle.Fill;

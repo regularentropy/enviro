@@ -90,10 +90,12 @@ internal sealed class EnvGridFactory : IEnvGridFactory
             AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
             EditMode = DataGridViewEditMode.EditProgrammatically,
             AllowUserToResizeRows = false,
-            BackgroundColor = Color.White,
             AllowUserToAddRows = false,
             AllowUserToDeleteRows = false,
         };
+
+        // The palette owns the grid chrome; the state colours still arrive per cell below.
+        GridStyleHelper.ApplyGridTheme(grid);
 
         // Comfortable row density that follows the font/DPI size instead of a fixed pixel value.
         grid.RowTemplate.Height = grid.Font.Height + 12;

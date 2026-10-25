@@ -13,6 +13,22 @@ internal partial class AboutForm : Form
     {
         InitializeComponent();
 
+        // The logo ships as black ink; recolour it for the active palette so it does not vanish on
+        // a dark window.
+        appIcon.Image = ThemeArtwork.Tint(Properties.Resources.pen_square_svgrepo_com);
+
+        // The system link colours are dark; the dark palette supplies light ones so the footer
+        // links stay readable.
+        if (!ThemePalette.SystemLinkColours)
+        {
+            foreach (var link in new[] { repoLink, issuesLink, licenseLink })
+            {
+                link.LinkColor = ThemePalette.LinkText;
+                link.ActiveLinkColor = ThemePalette.LinkActive;
+                link.VisitedLinkColor = ThemePalette.LinkVisited;
+            }
+        }
+
         _mr = mr;
         _log = log;
 

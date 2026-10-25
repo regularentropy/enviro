@@ -11,21 +11,50 @@ namespace enviro.Static;
 internal static class GridStyleHelper
 {
     /// <summary>
+    /// Applies the active palette to a grid's chrome: the empty-area background, the grid lines,
+    /// the default cell text, and the row/column headers.
+    /// </summary>
+    /// <remarks>
+    /// Windows paints grid headers from the visual style, which ignores the dark colour mode. The
+    /// dark palette therefore turns that painter off and supplies the header colours itself; the
+    /// light palette leaves it on, so light mode looks exactly as it did before the theme work.
+    /// The per-row backgrounds are <see cref="ApplyStateFormatting"/>'s job.
+    /// </remarks>
+    /// <param name="grid">The grid to theme.</param>
+    public static void ApplyGridTheme(DataGridView grid)
+    {
+        grid.BackgroundColor = ThemePalette.GridBackground;
+        grid.GridColor = ThemePalette.GridLines;
+
+        grid.DefaultCellStyle.BackColor = ThemePalette.GridBackground;
+        grid.DefaultCellStyle.ForeColor = ThemePalette.CellText;
+
+        grid.EnableHeadersVisualStyles = ThemePalette.SystemHeaders;
+        grid.ColumnHeadersDefaultCellStyle.BackColor = ThemePalette.HeaderBackground;
+        grid.ColumnHeadersDefaultCellStyle.ForeColor = ThemePalette.HeaderText;
+        grid.ColumnHeadersDefaultCellStyle.SelectionBackColor = ThemePalette.HeaderBackground;
+        grid.ColumnHeadersDefaultCellStyle.SelectionForeColor = ThemePalette.HeaderText;
+        grid.RowHeadersDefaultCellStyle.BackColor = ThemePalette.HeaderBackground;
+        grid.RowHeadersDefaultCellStyle.ForeColor = ThemePalette.HeaderText;
+    }
+
+    /// <summary>
     /// Applies colour, selection colour and font formatting to a DataGridView cell based on the
     /// environmental variable's state and corrupted-path overlay.
-    /// Added: light green, Modified: light yellow, Deleted: light coral with strikeout,
-    /// Unchanged: white, Corrupted: red (overrides the state background).
-    /// The selected row keeps a recognisable matching shade of the same colour with black text.
+    /// Every colour comes from <see cref="ThemePalette"/>, so the same row reads in light and dark
+    /// mode; a deleted row is struck through and the corrupted overlay overrides the state background.
+    /// The selected row keeps a recognisable matching shade of the same colour, with text chosen for
+    /// contrast against it.
     /// </summary>
     /// <param name="e">The cell formatting event arguments.</param>
     /// <param name="model">The environmental variable model associated with the cell.</param>
     public static void ApplyStateFormatting(DataGridViewCellFormattingEventArgs e, EnvModel model)
     {
-        var colors = GetStateColors(model);
+        var colors = ThemePalette.Row(model.State, model.IsCorrupted);
 
         e.CellStyle.BackColor = colors.Background;
         e.CellStyle.SelectionBackColor = colors.SelectionBackground;
-        e.CellStyle.SelectionForeColor = Color.Black;
+        e.CellStyle.SelectionForeColor = ThemePalette.SelectionText;
 
         if (model.State == EnvironmentalVariableState.Deleted)
             e.CellStyle.Font = new Font(e.CellStyle.Font, FontStyle.Strikeout);
@@ -49,29 +78,6 @@ internal static class GridStyleHelper
                 EnvironmentalVariableState.Deleted => "–",
                 _ => string.Empty
             };
-
-    /// <summary>
-    /// Maps a model to the pair of backgrounds used for normal and selected cells.
-    /// Both shades live here so they cannot drift apart.
-    /// </summary>
-    private static StateColors GetStateColors(EnvModel model)
-    {
-        if (model.IsCorrupted)
-            return new(Color.Red, Color.FromArgb(230, 96, 96));
-
-        return model.State switch
-        {
-            EnvironmentalVariableState.Added => new(Color.LightGreen, Color.FromArgb(112, 199, 112)),
-            EnvironmentalVariableState.Modified => new(Color.LightYellow, Color.FromArgb(229, 214, 128)),
-            EnvironmentalVariableState.Deleted => new(Color.LightCoral, Color.FromArgb(222, 133, 133)),
-            _ => new(Color.White, Color.FromArgb(214, 214, 214))
-        };
-    }
-
-    /// <summary>
-    /// The background and selection background for one row state.
-    /// </summary>
-    private readonly record struct StateColors(Color Background, Color SelectionBackground);
 
     /// <summary>
     /// Sorts the specified DataGridView by the given column, toggling between ascending and descending order, and

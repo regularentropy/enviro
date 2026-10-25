@@ -439,6 +439,11 @@ internal partial class MainForm : Form
     {
         var exportVariables = new MainCommand("Export variables…", [], ExportVariables, () => true);
         var importVariables = new MainCommand("Import variables…", [], ImportVariables, () => true);
+        // Menu-only and self-disabling when the process is already elevated, so the item cannot
+        // restart an administrator session into the same state.
+        var restartAsAdmin = new MainCommand("Restart as administrator", [],
+            () => RestartAsAdmin(this, EventArgs.Empty),
+            () => !AdminChecker.CanMutate(EnvironmentalVariableType.Machine));
         var add = new MainCommand("Add", [Keys.Control | Keys.N], () => CreateEntryClicked(this, EventArgs.Empty), CanMutate);
         var edit = new MainCommand("Edit", [Keys.F2, Keys.Control | Keys.E], () => EditEntryClicked(this, EventArgs.Empty), () => CanMutate() && HasSelection() && !FocusIsTextBox());
         var delete = new MainCommand("Delete", [Keys.Delete], () => DeleteEntryClicked(this, EventArgs.Empty), () => CanMutate() && HasSelection() && !FocusIsTextBox());
@@ -451,6 +456,7 @@ internal partial class MainForm : Form
         Project(exportVariables, null, fileToolStripMenuItem, 0);
         Project(importVariables, null, fileToolStripMenuItem, 1);
         fileToolStripMenuItem.DropDownItems.Insert(2, new ToolStripSeparator());
+        Project(restartAsAdmin, null, fileToolStripMenuItem, 3);
 
         // Both menus are inserted after File and ahead of the designer's Options and Help menus.
         var variablesMenu = new ToolStripMenuItem("Variables");
@@ -468,7 +474,7 @@ internal partial class MainForm : Form
         Project(focusFilter, null, viewMenu);
         viewMenu.DropDownItems.Add(CreateCorruptedValidationMenu());
 
-        return new MainCommandTable([exportVariables, importVariables, add, edit, delete, refresh, apply, focusFilter]);
+        return new MainCommandTable([exportVariables, importVariables, restartAsAdmin, add, edit, delete, refresh, apply, focusFilter]);
     }
 
     /// <summary>

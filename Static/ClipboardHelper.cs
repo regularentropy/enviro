@@ -17,7 +17,14 @@ internal static class ClipboardHelper
         if (model is not null)
         {
             var value = selector(model);
-            Clipboard.SetText(value);
+            try
+            {
+                Clipboard.SetText(value);
+            }
+            catch (System.Runtime.InteropServices.ExternalException)
+            {
+                // Another process holds the clipboard open: an environmental condition, not an app error.
+            }
         }
     }
 }

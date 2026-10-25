@@ -9,7 +9,7 @@ namespace enviro.Forms;
 /// </summary>
 internal partial class CreateForm : AbstractEntryForm
 {
-    public CreateForm(IEnvScope scope) : base(scope)
+    public CreateForm(IEnvScope scope, ICorruptedPathService corruption) : base(scope, corruption)
     {
         this.Text = "Create";
         addButton.Text = "Create";

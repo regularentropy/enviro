@@ -46,7 +46,7 @@ internal class EntryFormFactory(IEnvService _env, ICorruptedPathService _corrupt
     /// <param name="t">The type of environmental variable (User or Machine).</param>
     /// <returns>A CreateForm instance.</returns>
     public Form Create(EnvironmentalVariableType t) =>
-        new CreateForm(_env.GetScope(t));
+        new CreateForm(_env.GetScope(t), _corruption);
 
     /// <summary>
     /// Creates a new form for editing an existing environmental variable.

@@ -221,7 +221,9 @@ internal sealed class VariableFileService(IAppLog _log) : IVariableFileService
     {
         try
         {
-            File.WriteAllText(path, JsonSerializer.Serialize(file, JsonOptions));
+            var tempPath = path + ".tmp";
+            File.WriteAllText(tempPath, JsonSerializer.Serialize(file, JsonOptions));
+            File.Move(tempPath, path, overwrite: true);
             return null;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or NotSupportedException or ArgumentException)

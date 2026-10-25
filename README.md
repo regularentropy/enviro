@@ -5,19 +5,19 @@
 
 A lightweight environment variable manager for Windows with a classic interface.
 
-![Screenshot](docs/screenshot.png)
+![Screenshot](docs/scr.png)
 
 ## Why does this exist?
 
-Windows has a built-in environment variable editor, but its interface is outdated and makes PATH management cumbersome. There's no change tracking to show what was modified, deleted, or created, and the design leaves much to be desired.
+Windows has a built-in environment variable editor, but its interface is outdated and error-prone: values are edited as opaque strings, there is no change tracking to show what was modified, deleted or created, and mistakes are hard to notice and undo.
 
-Enviro addresses these issues with a classic Windows interface and a change tracking system for safe environment variable management.
+Enviro addresses this with a classic Windows interface, change tracking for every user and system variable, and a staged apply — nothing is written until you confirm it.
 
 ## Features
 
 - 🎯 **Native WinForms**: Built with Windows Forms for a smaller binary size & performance.
 - 📋 **Change Tracking**: See exactly what was modified, deleted, or created in your environment variables.
-- ✅ **Path Validation**: Detects environment variables pointing to invalid/non-existent paths.
+- ✅ **Path Validation**: Detects variables pointing to invalid/non-existent paths.
 - 💾 **Import/Export**: Back up and restore your environment variables to a JSON file, choosing exactly which variables travel.
 - 🌓 **Theme Support**: Follows the Windows light/dark mode, with a System/Light/Dark choice in Options that applies on the next start.
 - ⚡ **Instant Apply**: Changes take effect immediately without system restart.

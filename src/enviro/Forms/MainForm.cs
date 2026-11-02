@@ -348,7 +348,7 @@ internal partial class MainForm : Form
                 DialogHelper.ShowMessage("No updates found", "Updater");
                 return;
             }
-            new UpdateForm(response).ShowDialog();
+            new UpdateForm(response, _log).ShowDialog();
         }
         catch (HttpRequestException ex) when (ex.InnerException is SocketException)
         {

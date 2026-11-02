@@ -35,7 +35,7 @@ namespace enviro.Forms
             titleLabel = new Label();
             versionLabel = new Label();
             releaseNotesLabel = new Label();
-            releaseNotesTextBox = new TextBox();
+            releaseNotesTextBox = new RichTextBox();
             buttonLayout = new TableLayoutPanel();
             openReleaseButton = new Button();
             closeButton = new Button();
@@ -147,18 +147,17 @@ namespace enviro.Forms
             //
             releaseNotesTextBox.AccessibleDescription = "Release notes for the available version";
             releaseNotesTextBox.AccessibleName = "Release notes";
-            releaseNotesTextBox.BackColor = SystemColors.Window;
             releaseNotesTextBox.Dock = DockStyle.Fill;
             releaseNotesTextBox.HideSelection = false;
             releaseNotesTextBox.Location = new Point(12, 89);
             releaseNotesTextBox.Margin = new Padding(0, 0, 0, 10);
-            releaseNotesTextBox.Multiline = true;
             releaseNotesTextBox.Name = "releaseNotesTextBox";
             releaseNotesTextBox.ReadOnly = true;
-            releaseNotesTextBox.ScrollBars = ScrollBars.Vertical;
+            releaseNotesTextBox.ScrollBars = RichTextBoxScrollBars.Vertical;
             releaseNotesTextBox.Size = new Size(536, 299);
             releaseNotesTextBox.TabIndex = 2;
             releaseNotesTextBox.WordWrap = true;
+            releaseNotesTextBox.LinkClicked += releaseNotesTextBox_LinkClicked;
             //
             // buttonLayout
             //
@@ -240,7 +239,7 @@ namespace enviro.Forms
         private Label titleLabel;
         private Label versionLabel;
         private Label releaseNotesLabel;
-        private TextBox releaseNotesTextBox;
+        private RichTextBox releaseNotesTextBox;
         private TableLayoutPanel buttonLayout;
         private Button openReleaseButton;
         private Button closeButton;

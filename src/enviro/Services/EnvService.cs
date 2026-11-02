@@ -286,15 +286,32 @@ internal sealed class EnvScope(EnvironmentalVariableType type) : IEnvScope
     /// <param name="value">The value to store under that name.</param>
     /// <param name="overwrite">False refuses to touch a row that is not deleted.</param>
     /// <returns>Which case happened; a refused upsert mutates nothing.</returns>
-    public UpsertOutcome Upsert(string name, string value, bool overwrite)
-    {
-        var existing = GetByName(name);
+    public UpsertOutcome Upsert(string name, string value, bool overwrite) =>
+        ResolveUpsert(GetByName(name), name, value, overwrite, out _);
 
+    /// <summary>
+    /// The create path once the row holding <paramref name="name"/> has been resolved: adds a new
+    /// row, restores a pending deletion or overwrites a live row. Split out so a caller that already
+    /// holds the row — the import batch, through its own name index — reaches the same rule without
+    /// a second name scan.
+    /// </summary>
+    /// <param name="existing">The row holding the name, or null when the scope has none.</param>
+    /// <param name="name">The variable name.</param>
+    /// <param name="value">The value to store under that name.</param>
+    /// <param name="overwrite">False refuses to touch a row that is not deleted.</param>
+    /// <param name="row">The row the call added or touched.</param>
+    /// <returns>Which case happened; a refused upsert mutates nothing.</returns>
+    private UpsertOutcome ResolveUpsert(
+        EnvModel? existing, string name, string value, bool overwrite, out EnvModel row)
+    {
         if (existing is null)
         {
-            Add(new EnvModel { Name = name, Path = value });
+            row = new EnvModel { Name = name, Path = value };
+            Add(row);
             return UpsertOutcome.Added;
         }
+
+        row = existing;
 
         if (existing.State == EnvironmentalVariableState.Deleted)
         {
@@ -327,6 +344,15 @@ internal sealed class EnvScope(EnvironmentalVariableType type) : IEnvScope
         // notification instead of 500.
         rows.RaiseListChangedEvents = false;
 
+        // One name index for the batch: GetByName is a linear scan, so resolving every entry through
+        // it makes a large file quadratic (a 100k-entry import took 85 s on the UI thread). Rows
+        // added below are put into the index too, so a name repeated later in the same file still
+        // resolves to the row this batch created.
+        var byName = new Dictionary<string, EnvModel>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var row in rows)
+            byName[row.Name] = row;
+
         try
         {
             foreach (var (name, value) in entries)
@@ -337,7 +363,7 @@ internal sealed class EnvScope(EnvironmentalVariableType type) : IEnvScope
                     continue;
                 }
 
-                var existing = GetByName(name);
+                byName.TryGetValue(name, out var existing);
 
                 if (existing is not null)
                 {
@@ -365,7 +391,14 @@ internal sealed class EnvScope(EnvironmentalVariableType type) : IEnvScope
                 }
 
                 // Import merges and overwrites; it never deletes, so an upsert cannot refuse.
-                if (Upsert(name, value, overwrite: true) == UpsertOutcome.Added)
+                var outcome = ResolveUpsert(existing, name, value, overwrite: true, out var resolved);
+
+                // That call can restore a deleted row under its baseline name, so the index follows
+                // the name the row holds now instead of the entry's spelling.
+                byName.Remove(name);
+                byName[resolved.Name] = resolved;
+
+                if (outcome == UpsertOutcome.Added)
                     added++;
                 else
                     overwritten++;

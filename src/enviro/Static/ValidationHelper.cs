@@ -126,15 +126,26 @@ internal static class ValidationHelper
 
     /// <summary>
     /// Resolves a path to its full form, treating a malformed path as one that cannot point anywhere.
+    /// A network (UNC) path resolves to nothing, so an existence check never probes the network.
     /// </summary>
     /// <param name="path">The path to resolve.</param>
     /// <param name="fullPath">The resolved path, empty when resolution failed.</param>
-    /// <returns>True when the path could be resolved.</returns>
+    /// <returns>True when the path could be resolved to a local location.</returns>
     private static bool TryResolveFullPath(string path, out string fullPath)
     {
         try
         {
             fullPath = Path.GetFullPath(path);
+
+            // GetFullPath normalises "//host/share" to "\\host\share"; refuse the UNC root so no
+            // Directory.Exists/File.Exists ever reaches the network — SMB would authenticate to
+            // the named host and disclose the user's NTLM hash.
+            if (fullPath.StartsWith(@"\\", StringComparison.Ordinal))
+            {
+                fullPath = string.Empty;
+                return false;
+            }
+
             return true;
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or IOException)
@@ -145,13 +156,29 @@ internal static class ValidationHelper
     }
 
     /// <summary>
-    /// Checks, whether the given string is the path to a directory
+    /// Whether the path is a UNC network path (<c>\\host\share</c>, in either slash style). Such a
+    /// path is never probed for existence: the probe would open an SMB session to the named host.
+    /// </summary>
+    /// <param name="path">The path as written.</param>
+    /// <returns>True when the path names a network share.</returns>
+    private static bool IsUncPath(string path) =>
+        path.StartsWith(@"\\", StringComparison.Ordinal)
+        || path.StartsWith("//", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Checks, whether the given string is the path to a directory. Network (UNC) paths are not
+    /// paths here: probing one would open an SMB session to the named host, so they read as text.
     /// </summary>
     /// <param name="path"></param>
     /// <returns>True if is the path</returns>
     public static bool IsPathToDirectory(string path)
     {
         if (string.IsNullOrWhiteSpace(path))
+            return false;
+
+        // A UNC root (\\host\share) names a network share, never a local folder; treat it as
+        // simple text so the corrupted-path scan never opens a connection to it.
+        if (IsUncPath(path))
             return false;
 
         // If the path has smth like C:\ in it

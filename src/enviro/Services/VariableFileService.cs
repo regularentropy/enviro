@@ -141,7 +141,7 @@ internal interface IVariableFileService
     /// <param name="path">The file to read.</param>
     /// <returns>
     /// The document, or null and the user-facing message when the file is missing, unreadable,
-    /// invalid JSON or written in another format version.
+    /// invalid JSON, over the size cap or written in another format version.
     /// </returns>
     (VariableFile? File, string? Error) Read(string path);
 
@@ -166,6 +166,14 @@ internal sealed class VariableFileService(IAppLog _log) : IVariableFileService
         PropertyNameCaseInsensitive = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
+
+    /// <summary>
+    /// Upper bound on the size of a file <see cref="Read"/> will parse. The length check reads
+    /// metadata, so it is free; a crafted multi-gigabyte document is refused there instead of
+    /// being deserialised until the heap runs out. Real exports stay far below it (a 100k-entry
+    /// file is about 3 MB).
+    /// </summary>
+    private const long MaxFileBytes = 64 * 1024 * 1024;
 
     /// <inheritdoc />
     public VariableFile Snapshot(IEnvService service) =>
@@ -199,6 +207,12 @@ internal sealed class VariableFileService(IAppLog _log) : IVariableFileService
         try
         {
             using var stream = File.OpenRead(path);
+
+            // Bound the read before parsing: a hostile file must not be deserialised until the
+            // process runs out of memory, so an oversized one is refused with the usual message.
+            if (stream.Length > MaxFileBytes)
+                return Fail(path, $"The file is larger than {MaxFileBytes / (1024 * 1024)} MB and was not read.");
+
             file = JsonSerializer.Deserialize<VariableFile>(stream, JsonOptions);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or NotSupportedException or ArgumentException)

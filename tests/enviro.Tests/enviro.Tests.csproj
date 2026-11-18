@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\enviro\enviro.csproj" />
+  </ItemGroup>
+
+  <!-- The suite covers non-UI logic only, so the WindowsDesktop framework reference the app
+       project drags in is dropped: the test host then also starts on non-Windows machines.
+       On Windows the framework is present anyway, so nothing changes there. -->
+  <Target Name="DropWindowsDesktopFrameworkReference" AfterTargets="ResolveFrameworkReferences">
+    <ItemGroup>
+      <FrameworkReference Remove="Microsoft.WindowsDesktop.App" />
+      <RuntimeFramework Remove="Microsoft.WindowsDesktop.App" />
+    </ItemGroup>
+  </Target>
+
+</Project>

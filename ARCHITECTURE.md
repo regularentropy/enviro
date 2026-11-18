@@ -43,7 +43,9 @@ Colour mode is also chosen once, in `Program.Main` before the first window exist
 
 ```
 enviro/
-├── enviro.slnx                    Solution (one project)
+├── enviro.slnx                    Solution (app + test project)
+├── tests/
+│   └── enviro.Tests/              xunit suite over the non-UI logic (scopes/undo, variable file, static helpers)
 ├── global.json                    Pins .NET SDK 10.0.0 with latestMajor roll-forward
 ├── docs/
 │   └── screenshot.png             README screenshot
@@ -98,7 +100,7 @@ enviro/
     └── Properties/                Resources, launch settings
 ```
 
-`bin/`, `obj/`, `.vs/`, `tests/`, `enviro.csproj.user` and `config.json` are not tracked.
+`bin/`, `obj/`, `.vs/`, `enviro.csproj.user` and `config.json` are not tracked.
 
 ---
 
@@ -344,6 +346,7 @@ The method is nominally async but performs synchronous registry writes on the ca
 - `Config` is non-nullable for consumers: `Init` returns the loaded model or the defaults, never `null`.
 - `Load` treats a missing, unreadable (`IOException`/`UnauthorizedAccessException`) or invalid (`JsonException`) file as absent. A `null` JSON body counts as absent too. The fallback marks the config dirty so exit rewrites the file.
 - `IsDirty` is set by `PropertyChanged`; `MainForm`’s toggle updates the model, saves immediately (so the choice survives a crash), and the app-exit hook still saves when dirty.
+- An internal constructor overload takes an explicit config path (the `%APPDATA%` path when null); DI only sees the public one, the tests use the overload to run against a temp file.
 - `Save` creates the `%APPDATA%\Enviro` folder when it is missing (it does not rely on the log having created it) and is atomic: it writes `config.json.tmp`, then `File.Move(..., overwrite: true)`.
 - Serialization, IO and access failures are recorded in `IAppLog` and raise `SaveFailed`, which `MainForm` shows as one transient status-strip message. Nothing is modal and exit is never blocked; `MainForm` unsubscribes in `OnFormClosed`, so the exit-time save cannot touch a closed window. The previous file survives and the app still exits cleanly. A failed read is logged the same way; a missing file is not (that is the ordinary first run).
 
@@ -776,4 +779,4 @@ New services should be registered in `Program.Main` and injected through constru
 - SDK pinned by `global.json` (`10.0.0`, `latestMajor`, prereleases disallowed).
 - `enviro.csproj` sets `WinExe`, `net10.0-windows`, nullable, implicit usings, assembly name `Enviro`, the version (`<Version>`, the one place the number is written — `MetadataRepository` reports it from the assembly and the docs quote no value), application icon, and references DI plus the Windows API Code Pack.
 - CI (`.github/workflows/build.yml`) runs on `windows-latest`, restores/builds `enviro.slnx` in Release, then publishes a self-contained single-file `win-x64` binary to `./publish/win-x64` and uploads it as an artifact. The workflow grants the `GITHUB_TOKEN` least privilege at the top level — `contents: read` for checkout, `actions: write` for the artifact upload — so a compromised action step cannot reach the repository beyond reading it or the Actions API beyond writing artifacts.
-- No test project is part of the solution; `tests/` contains only ignored build output.
+- The test suite lives in `tests/enviro.Tests` (xunit, part of `enviro.slnx`) and covers the non-UI logic: `EnvScope`/`EnvService` create/edit/delete/import/sort rules and the undo/redo snapshots, `UndoHistory` (stacks, batching, the 100-entry bound), `VariableFileService` (snapshot, read caps/version/normalise, review comparison), `ConfigService` (load/save/migration via its explicit-path constructor), and the static helpers (`ValidationHelper`, `WindowGeometry`, `EnvTypeConverter`, `StateCounter`, `ReleaseNotesFormatter`, `EnvModel` notifications). The app exposes its internals through `InternalsVisibleTo` in `enviro.csproj`; the test project drops the transitive `Microsoft.WindowsDesktop.App` framework reference so the test host also starts on non-Windows machines (the suite never touches a WinForms type). CI runs `dotnet test enviro.slnx --configuration Release` before publishing; publishing targets `src/enviro/enviro.csproj` so the artifact stays app-only.

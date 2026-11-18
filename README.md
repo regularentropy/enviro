@@ -63,7 +63,7 @@ dotnet run --project src/enviro/enviro.csproj
 Self-contained single-file build:
 
 ```shell
-dotnet publish enviro.slnx --configuration Release --output ./publish/win-x64 --runtime win-x64 --self-contained true /p:PublishSingleFile=true
+dotnet publish src/enviro/enviro.csproj --configuration Release --output ./publish/win-x64 --runtime win-x64 --self-contained true /p:PublishSingleFile=true
 ```
 
 ## Used Assets

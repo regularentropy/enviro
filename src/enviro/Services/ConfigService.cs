@@ -41,11 +41,17 @@ internal class ConfigService : IConfigService
     public event EventHandler<string>? SaveFailed;
 
     /// <param name="log">Where load and save failures are recorded.</param>
-    public ConfigService(IAppLog log)
+    public ConfigService(IAppLog log) : this(log, null)
+    {
+    }
+
+    /// <param name="log">Where load and save failures are recorded.</param>
+    /// <param name="configPath">An explicit config file path, or null for the %APPDATA% one; tests pass a temp path.</param>
+    internal ConfigService(IAppLog log, string? configPath)
     {
         _log = log;
 
-        ConfigPath = Path.Combine(
+        ConfigPath = configPath ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Enviro", "config.json");
         LegacyConfigPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.json");
 

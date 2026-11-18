@@ -15,7 +15,7 @@ Enviro — a lightweight Windows environment-variable manager built with WinForm
 - Entry point: `Program.cs` builds the `ServiceCollection` (all services/factories registered singleton, forms transient) and runs `MainForm`.
 - Windows-only: uses the registry through `Environment.SetEnvironmentVariable`, `System.Security.Principal`, and `WindowsAPICodePack` shell dialogs. Do not add cross-platform expectations.
 - Single project: `src/enviro/enviro.csproj`; solution is `enviro.slnx` (at the repo root). Version lives in `<Version>` in the csproj and is read by `MetadataRepository`.
-- `tests/` is ignored build output from an untracked test project — there is no test suite in this repo. Do not claim or run `dotnet test` as project verification.
+- Test project: `tests/enviro.Tests/enviro.Tests.csproj` (xunit, in `enviro.slnx`) covers the non-UI logic — scopes/store/undo, the variable file, config, static helpers. It sees the app's internals via `InternalsVisibleTo` in `src/enviro/enviro.csproj` and drops the transitive `Microsoft.WindowsDesktop.App` framework reference so `dotnet test` also runs on non-Windows hosts.
 
 ## Commands
 
@@ -24,12 +24,13 @@ Reference commands, not a script to run in order. Run from the repo root (Window
 ```bash
 dotnet restore enviro.slnx
 dotnet build enviro.slnx --configuration Release --no-restore
+dotnet test enviro.slnx --configuration Release --no-build  # run the xunit suite
 dotnet run --project src/enviro/enviro.csproj  # launch the app
-dotnet publish enviro.slnx --configuration Release --output ./publish/win-x64 \
+dotnet publish src/enviro/enviro.csproj --configuration Release --output ./publish/win-x64 \
   --runtime win-x64 --self-contained true /p:PublishSingleFile=true
 ```
 
-On non-Windows hosts a build additionally needs `-p:EnableWindowsTargeting=true` (and a writable NuGet cache); the app itself still only runs on Windows.
+On non-Windows hosts a build or test additionally needs `-p:EnableWindowsTargeting=true` (and a writable NuGet cache); the app itself still only runs on Windows. Publish targets the app project, not the solution, so the test assembly stays out of the artifact.
 
 ## Architecture
 

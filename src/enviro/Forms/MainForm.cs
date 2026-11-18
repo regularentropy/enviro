@@ -24,6 +24,7 @@ internal partial class MainForm : Form
     private readonly IAppLog _log;
     private readonly ApplyCoordinator _applyCoordinator;
     private readonly IVariableFileService _variableFiles;
+    private readonly IUndoHistory _undoHistory;
 
     // Builds the About dialog on demand, so the shell holds no container.
     private readonly Func<AboutForm> _aboutFormFactory;
@@ -41,7 +42,7 @@ internal partial class MainForm : Form
     // Each command's projected controls, refreshed together so their enablement cannot drift.
     private readonly List<(MainCommand Command, ToolStripItem[] Targets)> _commandTargets = [];
 
-    public MainForm(IEnvService es, IActionFactory<EnvModel> af, IUpdateService us, ITabFactory tf, IEnvGridFactory gf, Func<AboutForm> aboutForm, IConfigService cs, IAppLog log, ICorruptedPathService corruption, ApplyCoordinator applyCoordinator, IVariableFileService variableFiles)
+    public MainForm(IEnvService es, IActionFactory<EnvModel> af, IUpdateService us, ITabFactory tf, IEnvGridFactory gf, Func<AboutForm> aboutForm, IConfigService cs, IAppLog log, ICorruptedPathService corruption, ApplyCoordinator applyCoordinator, IVariableFileService variableFiles, IUndoHistory undoHistory)
     {
         InitializeComponent();
 
@@ -60,6 +61,7 @@ internal partial class MainForm : Form
         _log = log;
         _applyCoordinator = applyCoordinator;
         _variableFiles = variableFiles;
+        _undoHistory = undoHistory;
 
         ApplyElevationWindowGeometry();
 
@@ -87,14 +89,27 @@ internal partial class MainForm : Form
             _tabFactory.Create(EnvironmentalVariableType.Machine, () => RestartAsAdmin(this, EventArgs.Empty)),
         ]);
 
-        // Keep the toolbar's Add/Edit/Delete state in sync with the active tab and row.
+        // Keep the toolbar's Add/Edit/Delete state in sync with the active tab, row and focus:
+        // the !FocusIsTextBox() predicates must re-evaluate when the filter box gains or loses
+        // focus, otherwise a menu click (which does not re-check IsEnabled) would fire mid-text-edit.
         AllTab.SelectedIndexChanged += (_, _) => UpdateActionState();
 
         foreach (var grid in AllTab.TabPages.Cast<TabPage>().SelectMany(t => t.Controls.OfType<DataGridView>()))
+        {
             grid.SelectionChanged += (_, _) => UpdateActionState();
+
+            if (_gridFactory.FilterOf(grid) is { } filter)
+            {
+                filter.GotFocus += (_, _) => UpdateActionState();
+                filter.LostFocus += (_, _) => UpdateActionState();
+            }
+        }
 
         _envService.User.Rows.ListChanged += (_, _) => UpdateActionState();
         _envService.Machine.Rows.ListChanged += (_, _) => UpdateActionState();
+
+        // The undo/redo stacks change after the rows do, so the command enablement needs this too.
+        _undoHistory.StackChanged += OnUndoStackChanged;
 
         _commands = CreateCommandSurfaces();
         UpdateActionState();
@@ -449,6 +464,8 @@ internal partial class MainForm : Form
         var delete = new MainCommand("Delete", [Keys.Delete], () => DeleteEntryClicked(this, EventArgs.Empty), () => CanMutate() && HasSelection() && !FocusIsTextBox());
         var refresh = new MainCommand("Refresh", [Keys.F5], () => RefreshEntryClicked(this, EventArgs.Empty), () => true);
         var apply = new MainCommand("Apply", [Keys.Control | Keys.S], () => Apply(this, EventArgs.Empty), () => _envService.HasChanges());
+        var undo = new MainCommand("Undo", [Keys.Control | Keys.Z], () => _envService.Undo(), () => _envService.CanUndo && !FocusIsTextBox());
+        var redo = new MainCommand("Redo", [Keys.Control | Keys.Y], () => _envService.Redo(), () => _envService.CanRedo && !FocusIsTextBox());
         var focusFilter = new MainCommand("Focus filter", [Keys.Control | Keys.F], FocusFilter, () => ActiveFilter() is not null);
 
         // Menu-only commands: no toolbar button and no shortcut key, so the command surface stays
@@ -467,6 +484,11 @@ internal partial class MainForm : Form
         Project(delete, deleteToolStripButton, variablesMenu);
         Project(apply, applyToolStripButton, variablesMenu);
 
+        // Menu-only: undo/redo are workspace commands, not row actions, so the text-only toolbar
+        // keeps its five buttons and the shortcuts ride the command table alone.
+        Project(undo, null, variablesMenu);
+        Project(redo, null, variablesMenu);
+
         var viewMenu = new ToolStripMenuItem("View");
         menuStrip1.Items.Insert(2, viewMenu);
 
@@ -474,7 +496,7 @@ internal partial class MainForm : Form
         Project(focusFilter, null, viewMenu);
         viewMenu.DropDownItems.Add(CreateCorruptedValidationMenu());
 
-        return new MainCommandTable([exportVariables, importVariables, restartAsAdmin, add, edit, delete, refresh, apply, focusFilter]);
+        return new MainCommandTable([exportVariables, importVariables, restartAsAdmin, add, edit, delete, refresh, apply, focusFilter, undo, redo]);
     }
 
     /// <summary>
@@ -612,6 +634,9 @@ internal partial class MainForm : Form
             return;
         }
 
+        // One import is one undo step, even when it merges into both scopes.
+        using var batch = _undoHistory.BeginBatch();
+
         var user = ImportSelected(EnvironmentalVariableType.User, review.SelectedEntries);
         var machine = ImportSelected(EnvironmentalVariableType.Machine, review.SelectedEntries);
 
@@ -742,6 +767,11 @@ internal partial class MainForm : Form
     private void OnConfigSaveFailed(object? sender, string message) => ShowTransientStatus(message);
 
     /// <summary>
+    /// Refreshes the command enablement when the undo/redo stacks change.
+    /// </summary>
+    private void OnUndoStackChanged(object? sender, EventArgs e) => UpdateActionState();
+
+    /// <summary>
     /// Shows a message in the status strip for a few seconds instead of a modal dialog.
     /// </summary>
     /// <param name="message">The message to show.</param>
@@ -774,6 +804,7 @@ internal partial class MainForm : Form
     {
         // The exit hook still saves after the window is gone; it must not touch a dead form.
         _configService.SaveFailed -= OnConfigSaveFailed;
+        _undoHistory.StackChanged -= OnUndoStackChanged;
 
         // No scan may outlive the window: pending work is dropped and in-flight verdicts discarded.
         _corruption.Cancel();

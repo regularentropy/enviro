@@ -18,6 +18,25 @@ internal partial class PathEntriesControl : UserControl
 
     private bool _suppressChange;
 
+    private const int UndoLimit = 100;
+
+    private readonly Stack<SegmentDelta> _undo = [];
+    private readonly Stack<SegmentDelta> _redo = [];
+
+    /// <summary>
+    /// The cell being edited and its value at edit start, so a committed edit records one delta.
+    /// </summary>
+    private (int Row, string OldValue)? _pendingEdit;
+
+    private enum SegmentDeltaKind { Add, Remove, Move, Edit }
+
+    /// <summary>
+    /// One segment-list change as a delta (kind + affected indexes + old/new value), so an undo
+    /// step costs O(1) instead of copying the whole list. <c>Target</c> is the swap partner of a
+    /// <see cref="SegmentDeltaKind.Move"/>.
+    /// </summary>
+    private sealed record SegmentDelta(SegmentDeltaKind Kind, int Index, int Target, string? OldValue, string? NewValue);
+
     /// <summary>
     /// Raised after the user changes the list, so the host can update its value string.
     /// </summary>
@@ -41,6 +60,7 @@ internal partial class PathEntriesControl : UserControl
         GridStyleHelper.ApplyGridTheme(segmentsGrid);
 
         segmentsGrid.SelectionChanged += (_, _) => UpdateActionState();
+        segmentsGrid.CellBeginEdit += GridCellBeginEdit;
         segmentsGrid.CellValueChanged += GridCellValueChanged;
         segmentsGrid.CellEndEdit += GridCellEndEdit;
 
@@ -62,6 +82,10 @@ internal partial class PathEntriesControl : UserControl
     /// <param name="value">The <c>;</c>-separated value to load.</param>
     public void LoadValue(string value)
     {
+        _undo.Clear();
+        _redo.Clear();
+        _pendingEdit = null;
+
         _suppressChange = true;
 
         try
@@ -80,6 +104,150 @@ internal partial class PathEntriesControl : UserControl
         }
 
         UpdateActionState();
+    }
+
+    /// <summary>Whether a segment-list change can be undone inside this control.</summary>
+    public bool CanUndo => _undo.Count > 0;
+
+    /// <summary>Whether an undone segment-list change can be redone.</summary>
+    public bool CanRedo => _redo.Count > 0;
+
+    /// <summary>Whether a grid cell is in edit mode; while it is, Ctrl+Z keeps its native text-undo meaning.</summary>
+    public bool IsEditing => segmentsGrid.IsCurrentCellInEditMode;
+
+    /// <summary>
+    /// Reverts the last segment-list change (add, remove, move, committed cell edit).
+    /// </summary>
+    public void Undo()
+    {
+        if (_undo.Count == 0)
+            return;
+
+        var delta = _undo.Pop();
+        _redo.Push(delta);
+        Apply(delta, forward: false);
+    }
+
+    /// <summary>
+    /// Reapplies the last undone segment-list change.
+    /// </summary>
+    public void Redo()
+    {
+        if (_redo.Count == 0)
+            return;
+
+        var delta = _redo.Pop();
+        _undo.Push(delta);
+        Apply(delta, forward: true);
+    }
+
+    /// <summary>
+    /// Applies one delta forward (redo) or in inverse (undo) and notifies the host once.
+    /// </summary>
+    private void Apply(SegmentDelta delta, bool forward)
+    {
+        // Programmatic cell writes raise CellValueChanged, which would notify the host once per
+        // cell (and mid-swap for a Move); suppress those and notify exactly once at the end.
+        _suppressChange = true;
+
+        try
+        {
+            switch (delta.Kind)
+            {
+                case SegmentDeltaKind.Add:
+                    if (forward) InsertRow(delta.Index, delta.NewValue);
+                    else RemoveRow(delta.Index);
+                    break;
+
+                case SegmentDeltaKind.Remove:
+                    if (forward) RemoveRow(delta.Index);
+                    else InsertRow(delta.Index, delta.OldValue);
+                    break;
+
+                case SegmentDeltaKind.Move:
+                    SwapRows(delta.Index, delta.Target);
+                    break;
+
+                case SegmentDeltaKind.Edit:
+                    SetValue(delta.Index, forward ? delta.NewValue : delta.OldValue);
+                    break;
+            }
+        }
+        finally
+        {
+            _suppressChange = false;
+        }
+
+        NotifyValueChanged();
+    }
+
+    private void Push(SegmentDelta delta)
+    {
+        _undo.Push(delta);
+
+        if (_undo.Count > UndoLimit)
+            TrimOldest(_undo);
+
+        _redo.Clear();
+    }
+
+    /// <summary>
+    /// Drops the oldest entry of a stack that grew past the limit. A stack has no random access,
+    /// so trimming the bottom rebuilds it; <see cref="Stack{T}.ToArray"/> copies newest first.
+    /// </summary>
+    /// <param name="stack">The over-limit stack.</param>
+    private static void TrimOldest(Stack<SegmentDelta> stack)
+    {
+        var entries = stack.ToArray();
+        stack.Clear();
+
+        for (var i = entries.Length - 2; i >= 0; i--)
+            stack.Push(entries[i]);
+    }
+
+    private void InsertRow(int index, string? value)
+    {
+        index = Math.Clamp(index, 0, segmentsGrid.Rows.Count);
+        segmentsGrid.Rows.Insert(index, value ?? string.Empty, string.Empty);
+        UpdateExistence(index);
+        SelectRow(index);
+    }
+
+    private void RemoveRow(int index)
+    {
+        if (index < 0 || index >= segmentsGrid.Rows.Count)
+            return;
+
+        segmentsGrid.Rows.RemoveAt(index);
+        SelectRow(Math.Min(index, segmentsGrid.Rows.Count - 1));
+    }
+
+    private void SwapRows(int a, int b)
+    {
+        var moving = segmentsGrid.Rows[a].Cells[valueColumn.Index].Value;
+        segmentsGrid.Rows[a].Cells[valueColumn.Index].Value = segmentsGrid.Rows[b].Cells[valueColumn.Index].Value;
+        segmentsGrid.Rows[b].Cells[valueColumn.Index].Value = moving;
+
+        UpdateExistence(a);
+        UpdateExistence(b);
+
+        SelectRow(b);
+    }
+
+    private void SetValue(int index, string? value)
+    {
+        if (index < 0 || index >= segmentsGrid.Rows.Count)
+            return;
+
+        segmentsGrid.Rows[index].Cells[valueColumn.Index].Value = value;
+        UpdateExistence(index);
+        SelectRow(index);
+    }
+
+    private void SelectRow(int index)
+    {
+        if (index >= 0 && index < segmentsGrid.Rows.Count)
+            segmentsGrid.CurrentCell = segmentsGrid.Rows[index].Cells[valueColumn.Index];
     }
 
     /// <summary>
@@ -139,10 +307,26 @@ internal partial class PathEntriesControl : UserControl
         openButton.Enabled = TryGetExistingTarget(out _);
     }
 
+    private void GridCellBeginEdit(object? sender, DataGridViewCellCancelEventArgs e)
+    {
+        if (e.ColumnIndex == valueColumn.Index && e.RowIndex >= 0)
+            _pendingEdit = (e.RowIndex, segmentsGrid.Rows[e.RowIndex].Cells[valueColumn.Index].Value?.ToString() ?? string.Empty);
+    }
+
     private void GridCellValueChanged(object? sender, DataGridViewCellEventArgs e)
     {
         if (e.RowIndex < 0 || e.ColumnIndex != valueColumn.Index)
             return;
+
+        if (_pendingEdit is { } pending && pending.Row == e.RowIndex)
+        {
+            var newValue = segmentsGrid.Rows[e.RowIndex].Cells[valueColumn.Index].Value?.ToString() ?? string.Empty;
+
+            if (pending.OldValue != newValue)
+                Push(new(SegmentDeltaKind.Edit, e.RowIndex, -1, pending.OldValue, newValue));
+
+            _pendingEdit = null;
+        }
 
         UpdateExistence(e.RowIndex);
         NotifyValueChanged();
@@ -150,6 +334,8 @@ internal partial class PathEntriesControl : UserControl
 
     private void GridCellEndEdit(object? sender, DataGridViewCellEventArgs e)
     {
+        _pendingEdit = null;
+
         if (e.RowIndex >= 0 && e.ColumnIndex == valueColumn.Index)
             UpdateExistence(e.RowIndex);
     }
@@ -179,7 +365,9 @@ internal partial class PathEntriesControl : UserControl
         if (dialog.ShowDialog() != CommonFileDialogResult.Ok)
             return;
 
-        var index = AddRow(dialog.FileName);
+        var index = segmentsGrid.Rows.Count;
+        Push(new(SegmentDeltaKind.Add, index, -1, null, dialog.FileName));
+        AddRow(dialog.FileName);
         segmentsGrid.CurrentCell = segmentsGrid.Rows[index].Cells[valueColumn.Index];
         NotifyValueChanged();
     }
@@ -191,11 +379,9 @@ internal partial class PathEntriesControl : UserControl
         if (index < 0)
             return;
 
-        segmentsGrid.Rows.RemoveAt(index);
-
-        if (segmentsGrid.Rows.Count > 0)
-            segmentsGrid.CurrentCell = segmentsGrid.Rows[Math.Min(index, segmentsGrid.Rows.Count - 1)].Cells[valueColumn.Index];
-
+        Push(new(SegmentDeltaKind.Remove, index, -1,
+            segmentsGrid.Rows[index].Cells[valueColumn.Index].Value?.ToString() ?? string.Empty, null));
+        RemoveRow(index);
         NotifyValueChanged();
     }
 
@@ -215,14 +401,8 @@ internal partial class PathEntriesControl : UserControl
         if (index < 0 || target < 0 || target >= segmentsGrid.Rows.Count)
             return;
 
-        var moving = segmentsGrid.Rows[index].Cells[valueColumn.Index].Value;
-        segmentsGrid.Rows[index].Cells[valueColumn.Index].Value = segmentsGrid.Rows[target].Cells[valueColumn.Index].Value;
-        segmentsGrid.Rows[target].Cells[valueColumn.Index].Value = moving;
-
-        UpdateExistence(index);
-        UpdateExistence(target);
-
-        segmentsGrid.CurrentCell = segmentsGrid.Rows[target].Cells[valueColumn.Index];
+        Push(new(SegmentDeltaKind.Move, index, target, null, null));
+        SwapRows(index, target);
         NotifyValueChanged();
     }
 

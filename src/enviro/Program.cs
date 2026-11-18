@@ -41,6 +41,7 @@ namespace enviro
 
             services.AddSingleton<IAppLog>(appLog);
             services.AddSingleton<IEnvService, EnvService>();
+            services.AddSingleton<IUndoHistory, UndoHistory>();
 
             services.AddSingleton<IContextMenuFactory, ContextMenuFactory>();
             services.AddSingleton<IEnvGridFactory, EnvGridFactory>();

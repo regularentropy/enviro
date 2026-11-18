@@ -135,4 +135,31 @@ internal abstract partial class AbstractEntryForm : Form
     {
         this.Close();
     }
+
+    /// <summary>
+    /// In entries mode, Ctrl+Z/Ctrl+Y undo/redo the segment list itself — the shell's command
+    /// table does not run while this modal dialog is open. The guard must also exclude a focused
+    /// text box: TextBoxBase.ProcessCmdKey does not consume Ctrl+Z itself, so without this check
+    /// the override would eat the key before the native edit control and steal text undo from
+    /// the name box. An editing grid cell is excluded via <see cref="PathEntriesControl.IsEditing"/>.
+    /// </summary>
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (_entriesMode && !_entriesControl.IsEditing && ActiveControl is not TextBox)
+        {
+            if (keyData == (Keys.Control | Keys.Z) && _entriesControl.CanUndo)
+            {
+                _entriesControl.Undo();
+                return true;
+            }
+
+            if (keyData == (Keys.Control | Keys.Y) && _entriesControl.CanRedo)
+            {
+                _entriesControl.Redo();
+                return true;
+            }
+        }
+
+        return base.ProcessCmdKey(ref msg, keyData);
+    }
 }

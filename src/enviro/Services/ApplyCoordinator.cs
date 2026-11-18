@@ -15,7 +15,8 @@ internal sealed record ApplyOutcome(bool Succeeded, string Message);
 /// </summary>
 /// <param name="_es">The store whose pending rows are applied and counted.</param>
 /// <param name="_adapter">Where the tracked states are written to Windows.</param>
-internal sealed class ApplyCoordinator(IEnvService _es, IEnvAdapter _adapter)
+/// <param name="_undo">Where the run is recorded as one undo step.</param>
+internal sealed class ApplyCoordinator(IEnvService _es, IEnvAdapter _adapter, IUndoHistory _undo)
 {
     /// <summary>
     /// The number of rows pending across both scopes.
@@ -30,6 +31,11 @@ internal sealed class ApplyCoordinator(IEnvService _es, IEnvAdapter _adapter)
     public async Task<ApplyOutcome> ApplyAsync()
     {
         var applied = PendingChanges();
+
+        // One apply run is one undo step: the per-row cleanups merge into a single entry. Undoing
+        // it reconciles the rows against the new system baseline (EnvScope.WriteFields), so
+        // undoing further lands them as pending against the applied values and Apply can revert.
+        using var batch = _undo.BeginBatch();
 
         var result = await _adapter.ApplyAsync();
 

@@ -1,7 +1,4 @@
 <Solution>
-  <Folder Name="/src/" />
-  <Folder Name="/tests/">
-    <Project Path="tests/enviro.Tests/enviro.Tests.csproj" />
-  </Folder>
   <Project Path="src/enviro/enviro.csproj" />
+  <Project Path="tests/enviro.Tests/enviro.Tests.csproj" />
 </Solution>

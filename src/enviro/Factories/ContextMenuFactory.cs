@@ -105,6 +105,17 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
         if (selectedCount <= 1 && pm.State == EnvironmentalVariableState.Modified)
             cms.Items.Add("Copy original path", null, (_, _) => ClipboardHelper.CopyText(pm.OriginalPath));
 
+        // The Registry Editor is scope-level, not row-level, so it stays in a multi-selection.
+        if (ControlHelper.GetTabType(grid) is { } regeditScope)
+        {
+            cms.Items.Add(new ToolStripSeparator());
+            cms.Items.Add("Open in Registry Editor", null, (_, _) =>
+            {
+                if (!RegeditHelper.OpenInRegedit(regeditScope))
+                    DialogHelper.ShowError($"Could not open the registry key {RegeditHelper.KeyPath(regeditScope)} in Registry Editor.", "Registry Editor");
+            });
+        }
+
         // Only a drifted row carries the live value the registry holds instead of the baseline.
         if (selectedCount <= 1 && pm.IsDrifted)
         {
@@ -138,6 +149,14 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
 
         var cms = new ContextMenuStrip();
         cms.Items.Add("Create", null, (_, _) => RowActionHelper.Create(grid, _entryFormFactory));
+
+        if (ControlHelper.GetTabType(grid) is { } regeditScope)
+            cms.Items.Add("Open in Registry Editor", null, (_, _) =>
+            {
+                if (!RegeditHelper.OpenInRegedit(regeditScope))
+                    DialogHelper.ShowError($"Could not open the registry key {RegeditHelper.KeyPath(regeditScope)} in Registry Editor.", "Registry Editor");
+            });
+
         return cms;
     }
 

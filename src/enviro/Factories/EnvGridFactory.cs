@@ -2,6 +2,7 @@
 using enviro.Services;
 using enviro.Static;
 using System.ComponentModel;
+using System.Text;
 
 namespace enviro.Factories;
 
@@ -116,7 +117,7 @@ internal sealed class EnvGridFactory : IEnvGridFactory
             ReadOnly = true,
             SelectionMode = DataGridViewSelectionMode.FullRowSelect,
             MultiSelect = true,
-            ScrollBars = ScrollBars.Vertical,
+            ScrollBars = ScrollBars.Both,
             BorderStyle = BorderStyle.None,
             ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize,
             AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
@@ -124,6 +125,9 @@ internal sealed class EnvGridFactory : IEnvGridFactory
             AllowUserToResizeRows = false,
             AllowUserToAddRows = false,
             AllowUserToDeleteRows = false,
+            // Off because the grid's own truncated-value tooltip would show next to the CellMouseEnter
+            // tooltip below, which already covers a clipped Name/Value cell.
+            ShowCellToolTips = false,
         };
 
         // The palette owns the grid chrome; the state colours still arrive per cell below.
@@ -147,8 +151,9 @@ internal sealed class EnvGridFactory : IEnvGridFactory
                 SortMode = DataGridViewColumnSortMode.NotSortable,
                 DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter }
             },
-            new DataGridViewTextBoxColumn() { Name="NameText", HeaderText = "Name", DataPropertyName = nameof(EnvModel.Name), SortMode = DataGridViewColumnSortMode.Automatic},
-            new DataGridViewTextBoxColumn() { Name="PathText", HeaderText = "Value", DataPropertyName = nameof(EnvModel.Path), SortMode = DataGridViewColumnSortMode.Automatic }
+            // Name fixed-width so a long Value cannot squeeze it in Fill mode; Value keeps Fill with a floor.
+            new DataGridViewTextBoxColumn() { Name="NameText", HeaderText = "Name", DataPropertyName = nameof(EnvModel.Name), SortMode = DataGridViewColumnSortMode.Automatic, AutoSizeMode = DataGridViewAutoSizeColumnMode.None, Width = 240, MinimumWidth = 140 },
+            new DataGridViewTextBoxColumn() { Name="PathText", HeaderText = "Value", DataPropertyName = nameof(EnvModel.Path), SortMode = DataGridViewColumnSortMode.Automatic, MinimumWidth = 120 }
         ]);
 
         var scope = env.GetScope(tab);
@@ -198,23 +203,28 @@ internal sealed class EnvGridFactory : IEnvGridFactory
         // Hover tells the row's story: a drifted row shows what the registry holds now, the
         // indicator column explains its glyph, and a clipped name/value cell shows its full text.
         var toolTip = new ToolTip();
+
+        // A PATH value has few spaces to wrap on, so the native tooltip draws it as one screen-wide
+        // line; breaking it here keeps the popup a readable block.
+        void ShowToolTip(string text) => toolTip.SetToolTip(grid, WrapToolTip(text));
+
         grid.CellMouseEnter += (s, e) =>
         {
             if (e.RowIndex < 0 || grid.Rows[e.RowIndex].DataBoundItem is not EnvModel model)
             {
-                toolTip.SetToolTip(grid, string.Empty);
+                ShowToolTip(string.Empty);
                 return;
             }
 
             if (model.IsDrifted)
             {
-                toolTip.SetToolTip(grid, $"enviro: {model.OriginalPath}\nsystem: {model.LiveValue ?? "(deleted)"}");
+                ShowToolTip($"enviro: {model.OriginalPath}\nsystem: {model.LiveValue ?? "(deleted)"}");
                 return;
             }
 
             if (e.ColumnIndex >= 0 && grid.Columns[e.ColumnIndex].Name == StateIndicatorColumnName)
             {
-                toolTip.SetToolTip(grid, DescribeState(model));
+                ShowToolTip(DescribeState(model));
                 return;
             }
 
@@ -222,14 +232,13 @@ internal sealed class EnvGridFactory : IEnvGridFactory
             {
                 var text = grid.Columns[e.ColumnIndex].Name == "NameText" ? model.Name : model.Path;
                 using var g = grid.CreateGraphics();
-                toolTip.SetToolTip(grid,
-                    g.MeasureString(text, grid.Font).Width > grid.Columns[e.ColumnIndex].Width - 8
-                        ? text
-                        : string.Empty);
+                ShowToolTip(g.MeasureString(text, grid.Font).Width > grid.Columns[e.ColumnIndex].Width - 8
+                    ? text
+                    : string.Empty);
                 return;
             }
 
-            toolTip.SetToolTip(grid, string.Empty);
+            ShowToolTip(string.Empty);
         };
 
         grid.CellMouseDoubleClick += (s, e) =>
@@ -434,6 +443,43 @@ internal sealed class EnvGridFactory : IEnvGridFactory
             EnvironmentalVariableState.Deleted => "Marked for deletion — not applied yet",
             _ => string.Empty,
         };
+    }
+
+    /// <summary>
+    /// Breaks a long tooltip line at a path separator or space so the native tooltip does not draw
+    /// a PATH value as one screen-wide line.
+    /// </summary>
+    /// <param name="text">The tooltip text, possibly multi-line already.</param>
+    /// <param name="width">The maximum characters per line.</param>
+    /// <returns>The text with lines no longer than <paramref name="width"/> characters.</returns>
+    internal static string WrapToolTip(string text, int width = 64)
+    {
+        if (text.Length <= width)
+            return text;
+
+        var sb = new StringBuilder(text.Length + text.Length / width);
+
+        foreach (var line in text.Split('\n'))
+        {
+            for (var start = 0; start < line.Length;)
+            {
+                var take = Math.Min(width, line.Length - start);
+
+                if (start + take < line.Length)
+                {
+                    // Prefer a separator so a path breaks between segments, not inside one.
+                    var cut = line.LastIndexOfAny([';', '\\', '/', ' '], start + take - 1, take);
+
+                    if (cut > start)
+                        take = cut - start + 1;
+                }
+
+                sb.Append(line, start, take).Append('\n');
+                start += take;
+            }
+        }
+
+        return sb.ToString().TrimEnd('\n');
     }
 
     /// <summary>

@@ -35,6 +35,9 @@ internal partial class PathEntriesControl : UserControl
     /// </summary>
     private (int Row, string OldValue)? _pendingEdit;
 
+    /// <summary>The row a row drag is currently hovering as its drop target, or -1.</summary>
+    private int _dragTargetRow = -1;
+
     private enum SegmentDeltaKind { Add, Remove, Move, Edit }
 
     /// <summary>
@@ -70,6 +73,14 @@ internal partial class PathEntriesControl : UserControl
         segmentsGrid.CellBeginEdit += GridCellBeginEdit;
         segmentsGrid.CellValueChanged += GridCellValueChanged;
         segmentsGrid.CellEndEdit += GridCellEndEdit;
+
+        // Keyboard (Ctrl+Up/Ctrl+Down) and drag reorder; the same MoveRow path as the buttons.
+        segmentsGrid.AllowDrop = true;
+        segmentsGrid.KeyDown += GridKeyDown;
+        segmentsGrid.MouseDown += GridMouseDown;
+        segmentsGrid.DragEnter += GridDragOver;
+        segmentsGrid.DragOver += GridDragOver;
+        segmentsGrid.DragDrop += GridDragDrop;
 
         // Drift overlay: a segment the live registry no longer holds is painted with the drifted
         // row colour, so an external edit reads directly in the segment list.
@@ -433,19 +444,91 @@ internal partial class PathEntriesControl : UserControl
     private void MoveDownButtonClicked(object? sender, EventArgs e) => MoveCurrentRow(1);
 
     /// <summary>
+    /// Ctrl+Up / Ctrl+Down reorder the current entry; plain Up/Down keep native row navigation,
+    /// and while a cell editor is open the keys keep their native meaning (see <see cref="IsEditing"/>).
+    /// </summary>
+    private void GridKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (!e.Control || IsEditing || (e.KeyCode != Keys.Up && e.KeyCode != Keys.Down))
+            return;
+
+        MoveCurrentRow(e.KeyCode == Keys.Up ? -1 : 1);
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// Starts a row drag (left button over a data row, not while editing).
+    /// </summary>
+    private void GridMouseDown(object? sender, MouseEventArgs e)
+    {
+        if (e.Button != MouseButtons.Left || IsEditing)
+            return;
+
+        var hit = segmentsGrid.HitTest(e.X, e.Y);
+
+        if (hit.RowIndex >= 0)
+            _ = segmentsGrid.DoDragDrop(hit.RowIndex, DragDropEffects.Move);
+    }
+
+    /// <summary>
+    /// Drag-over feedback: a pressed row index is a move; the hovered row is the drop target.
+    /// </summary>
+    private void GridDragOver(object? sender, DragEventArgs e)
+    {
+        if (e.Data?.GetDataPresent(typeof(int)) is not true || IsEditing)
+        {
+            e.Effect = DragDropEffects.None;
+            return;
+        }
+
+        var client = segmentsGrid.PointToClient(new Point(e.X, e.Y));
+        var hit = segmentsGrid.HitTest(client.X, client.Y);
+        _dragTargetRow = hit.RowIndex >= 0 ? hit.RowIndex : segmentsGrid.Rows.Count - 1;
+        e.Effect = DragDropEffects.Move;
+    }
+
+    /// <summary>
+    /// Drops the pressed row on the last hovered row as an undoable move.
+    /// </summary>
+    private void GridDragDrop(object? sender, DragEventArgs e)
+    {
+        if (e.Data?.GetData(typeof(int)) is not int from || IsEditing)
+            return;
+
+        var target = _dragTargetRow;
+        _dragTargetRow = -1;
+
+        MoveRow(from, target);
+    }
+
+    /// <summary>
     /// Swaps the current entry with its neighbour, keeping the moved entry selected.
     /// </summary>
     /// <param name="offset">-1 to move up, 1 to move down.</param>
     private void MoveCurrentRow(int offset)
     {
         var index = segmentsGrid.CurrentRow?.Index ?? -1;
-        var target = index + offset;
 
-        if (index < 0 || target < 0 || target >= segmentsGrid.Rows.Count)
+        if (index < 0)
             return;
 
-        Push(new(SegmentDeltaKind.Move, index, target, null, null));
-        SwapRows(index, target);
+        MoveRow(index, index + offset);
+    }
+
+    /// <summary>
+    /// Moves one entry to a new position as an undoable Move delta, keeping the moved entry
+    /// selected. Equal or out-of-bounds indexes are a no-op.
+    /// </summary>
+    /// <param name="from">The row to move.</param>
+    /// <param name="to">The row to swap it with (the new position).</param>
+    private void MoveRow(int from, int to)
+    {
+        if (from < 0 || to < 0 || from == to
+            || from >= segmentsGrid.Rows.Count || to >= segmentsGrid.Rows.Count)
+            return;
+
+        Push(new(SegmentDeltaKind.Move, from, to, null, null));
+        SwapRows(from, to);
         NotifyValueChanged();
     }
 

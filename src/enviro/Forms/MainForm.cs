@@ -47,6 +47,12 @@ internal partial class MainForm : Form
     // Each command's projected controls, refreshed together so their enablement cannot drift.
     private readonly List<(MainCommand Command, ToolStripItem[] Targets)> _commandTargets = [];
 
+    // The command the Apply button mirrors, matched by reference in UpdateActionState, plus the
+    // two fonts the pending-changes emphasis switches between; created once and disposed never.
+    private MainCommand _applyCommand = null!;
+    private Font? _applyButtonRegularFont;
+    private Font? _applyButtonBoldFont;
+
     // The View → "Show drifted only" item, kept so the drifted status label can toggle it.
     private ToolStripMenuItem? _driftOnlyItem;
 
@@ -133,6 +139,7 @@ internal partial class MainForm : Form
         _undoHistory.StackChanged += OnUndoStackChanged;
 
         _commands = CreateCommandSurfaces();
+        _applyCommand = _commands.Commands.First(c => c.Label == "Apply");
         UpdateActionState();
         RestorePersistedView();
 
@@ -551,6 +558,17 @@ internal partial class MainForm : Form
 
             foreach (var target in targets)
                 target.Enabled = enabled;
+
+            // The Apply button carries the pending-changes emphasis: bold while there is something
+            // to apply, regular once the workspace is clean. Matched by reference so a different
+            // command that happens to spell "Apply" in another language never takes the emphasis.
+            if (ReferenceEquals(command, _applyCommand))
+            {
+                _applyButtonRegularFont ??= applyToolStripButton.Font;
+                _applyButtonBoldFont ??= new Font(_applyButtonRegularFont, _applyButtonRegularFont.Style | FontStyle.Bold);
+
+                applyToolStripButton.Font = enabled ? _applyButtonBoldFont : _applyButtonRegularFont;
+            }
         }
 
         UpdateStatusStrip();

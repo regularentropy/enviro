@@ -21,8 +21,8 @@ internal interface IRegFileService : IVariableFileService;
 internal sealed class RegFileService(IAppLog log, IVariableFileService variableFiles) : IRegFileService
 {
     private const string Header = "Windows Registry Editor Version 5.00";
-    private const string UserSection = @"HKEY_CURRENT_USER\Environment";
-    private const string MachineSection = @"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment";
+    internal const string UserSection = @"HKEY_CURRENT_USER\Environment";
+    internal const string MachineSection = @"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment";
 
     /// <summary>
     /// Upper bound on the size of a file <see cref="Read"/> will parse, mirroring

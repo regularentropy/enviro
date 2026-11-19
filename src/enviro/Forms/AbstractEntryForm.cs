@@ -8,9 +8,10 @@ namespace enviro.Forms;
 internal abstract partial class AbstractEntryForm : Form
 {
     /// <summary>
-    /// Design-time height of the form in its plain text view, as laid out at 96 DPI.
+    /// Design-time height of the form in its plain text view, as laid out at 96 DPI. The extra
+    /// row over the original 180 holds the inline error label.
     /// </summary>
-    protected const int TextModeHeight = 180;
+    protected const int TextModeHeight = 204;
 
     /// <summary>
     /// Design-time height of the form while the segment list is shown, as laid out at 96 DPI.
@@ -48,6 +49,8 @@ internal abstract partial class AbstractEntryForm : Form
         // so it must not require the user to type a ';' before it appears.
         entriesButton.Visible = true;
 
+        errorLabel.ForeColor = ThemePalette.ErrorText;
+
         UpdateActionState();
 
         this.CenterToScreen();
@@ -55,12 +58,23 @@ internal abstract partial class AbstractEntryForm : Form
 
     /// <summary>
     /// Enables the action button only when both fields are usable and, for an edit,
-    /// when the input actually differs from the bound model.
+    /// when the input actually differs from the bound model. The reason the input is rejected
+    /// (or the form's own warning) is written to the error label, so a disabled button
+    /// always has an explanation next to it.
     /// </summary>
-    protected void UpdateActionState() =>
-        addButton.Enabled =
-            HasPendingChange()
-            && ValidationHelper.IsValidEnvironmentVariableInput(nameTextBox.Text, pathTextBox.Text);
+    protected void UpdateActionState()
+    {
+        var error = ValidationHelper.InputError(nameTextBox.Text, pathTextBox.Text) ?? CustomWarning();
+
+        errorLabel.Text = error ?? string.Empty;
+        addButton.Enabled = HasPendingChange() && error is null;
+    }
+
+    /// <summary>
+    /// A form-specific warning shown inline (e.g. an existing name will be overwritten);
+    /// null when there is none.
+    /// </summary>
+    protected virtual string? CustomWarning() => null;
 
     /// <summary>
     /// Whether the current input differs from what the form was opened with. Create forms

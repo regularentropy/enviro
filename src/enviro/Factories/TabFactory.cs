@@ -43,19 +43,43 @@ internal sealed class TabFactory(IEnvGridFactory gridFactory) : ITabFactory
 
         TextBox filter = new()
         {
-            Dock = DockStyle.Top,
-            PlaceholderText = "Filter by name or value (Ctrl+F)",
+            Dock = DockStyle.Fill,
+            PlaceholderText = "Filter by name or value (Ctrl+F), Esc clears",
             BorderStyle = BorderStyle.FixedSingle
+        };
+
+        // The match count sits at the filter row's right edge, in the grid's muted ink.
+        Label count = new()
+        {
+            Dock = DockStyle.Right,
+            AutoSize = true,
+            TextAlign = ContentAlignment.MiddleLeft,
+            ForeColor = ThemePalette.MutedText,
+            Padding = new Padding(8, 0, 8, 0),
+        };
+
+        Panel filterRow = new() { Dock = DockStyle.Top, Height = filter.Font.Height + 10 };
+        filterRow.Controls.Add(filter);
+        filterRow.Controls.Add(count);
+
+        // Esc empties the filter instead of doing nothing.
+        filter.KeyDown += (_, e) =>
+        {
+            if (e.KeyCode == Keys.Escape)
+            {
+                filter.Clear();
+                e.SuppressKeyPress = true;
+            }
         };
 
         // Fill first, then the top-docked controls: WinForms docks controls in reverse add order.
         tab.Controls.Add(grid);
-        tab.Controls.Add(filter);
+        tab.Controls.Add(filterRow);
 
         if (currentTab == EnvironmentalVariableType.Machine && !AdminChecker.IsAdmin() && elevate is not null)
             tab.Controls.Add(CreateReadOnlyBanner(elevate));
 
-        gridFactory.AttachFilter(grid, filter);
+        gridFactory.AttachFilter(grid, filter, count);
 
         return tab;
     }

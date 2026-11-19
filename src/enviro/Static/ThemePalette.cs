@@ -169,6 +169,11 @@ internal static class ThemePalette
     public static Color MutedText => Active.MutedText;
 
     /// <summary>
+    /// The text colour of an inline validation error: the same red a missing PATH segment gets.
+    /// </summary>
+    public static Color ErrorText => Active.SegmentMissing;
+
+    /// <summary>
     /// The background of the read-only banner above the Machine grid.
     /// </summary>
     public static Color InfoBackground => Active.InfoBackground;

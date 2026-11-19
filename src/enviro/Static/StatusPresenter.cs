@@ -10,7 +10,8 @@ namespace enviro.Static;
 /// <param name="ShowCorrupted">Whether the corrupted-row count is shown, i.e. validation is enabled.</param>
 /// <param name="Corrupted">The corrupted-row count text, as of the last completed scan.</param>
 /// <param name="Drifted">The drifted-row count text, as of the last completed drift check.</param>
-internal sealed record StatusSummary(string Pending, bool ShowCorrupted, string Corrupted, string Drifted);
+/// <param name="DriftedCount">The drifted-row count itself, so the strip can hide the label at zero.</param>
+internal sealed record StatusSummary(string Pending, bool ShowCorrupted, string Corrupted, string Drifted, int DriftedCount);
 
 /// <summary>
 /// Computes what the status strip shows from the service state and the setting.
@@ -36,9 +37,10 @@ internal static class StatusPresenter
             : $"{added} added · {modified} modified · {deleted} deleted";
 
         var corrupted = $"{StateCounter.CountCorrupted(service.User) + StateCounter.CountCorrupted(service.Machine)} corrupted";
-        var drifted = $"{StateCounter.CountDrifted(service.User) + StateCounter.CountDrifted(service.Machine)} drifted";
+        var driftedCount = StateCounter.CountDrifted(service.User) + StateCounter.CountDrifted(service.Machine);
+        var drifted = $"{driftedCount} drifted";
 
-        return new StatusSummary(pending, enableCorruptedValidation, corrupted, drifted);
+        return new StatusSummary(pending, enableCorruptedValidation, corrupted, drifted, driftedCount);
     }
 
     /// <summary>

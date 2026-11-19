@@ -18,12 +18,14 @@ internal interface IEnvGridFactory
     DataGridView Create(EnvironmentalVariableType tab);
 
     /// <summary>
-    /// Connects a filter box to the grid. The grid hides rows whose name and value do not contain
-    /// the filter text (case-insensitive) and re-applies the filter after every list change and sort.
+    /// Connects a filter box and a match-count label to the grid. The grid hides rows whose name
+    /// and value do not contain the filter text (case-insensitive), re-applies the filter after
+    /// every list change and sort, and writes "N of M shown" (or "No matches") onto the label.
     /// </summary>
     /// <param name="grid">The grid to filter.</param>
     /// <param name="filter">The text box that supplies the filter text.</param>
-    void AttachFilter(DataGridView grid, TextBox filter);
+    /// <param name="count">The label that shows how many rows the current filter keeps visible.</param>
+    void AttachFilter(DataGridView grid, TextBox filter, Label count);
 
     /// <summary>
     /// The filter box connected to a grid.
@@ -67,6 +69,9 @@ internal sealed class EnvGridFactory : IEnvGridFactory
 
     // Filter boxes are owned by the tab pages; the grids live for the lifetime of the window.
     private readonly Dictionary<DataGridView, TextBox> _filters = [];
+
+    // The match-count label of each filter row, in the same mapping style as the filter boxes.
+    private readonly Dictionary<DataGridView, Label> _filterCounts = [];
 
     // Session-only drift filter state, per grid, in the same mapping style as the filter boxes.
     private readonly Dictionary<DataGridView, bool> _driftOnly = [];
@@ -181,14 +186,41 @@ internal sealed class EnvGridFactory : IEnvGridFactory
         // validation is off.
         _corruption.RequestScan(scope);
 
-        // A drifted row shows what the registry holds now on hover; other rows clear the tooltip.
+        // Hover tells the row's story: a drifted row shows what the registry holds now, the
+        // indicator column explains its glyph, and a clipped name/value cell shows its full text.
         var toolTip = new ToolTip();
         grid.CellMouseEnter += (s, e) =>
         {
-            if (e.RowIndex >= 0 && grid.Rows[e.RowIndex].DataBoundItem is EnvModel { IsDrifted: true } drifted)
-                toolTip.SetToolTip(grid, $"enviro: {drifted.OriginalPath}\nsystem: {drifted.LiveValue ?? "(deleted)"}");
-            else
+            if (e.RowIndex < 0 || grid.Rows[e.RowIndex].DataBoundItem is not EnvModel model)
+            {
                 toolTip.SetToolTip(grid, string.Empty);
+                return;
+            }
+
+            if (model.IsDrifted)
+            {
+                toolTip.SetToolTip(grid, $"enviro: {model.OriginalPath}\nsystem: {model.LiveValue ?? "(deleted)"}");
+                return;
+            }
+
+            if (e.ColumnIndex >= 0 && grid.Columns[e.ColumnIndex].Name == StateIndicatorColumnName)
+            {
+                toolTip.SetToolTip(grid, DescribeState(model));
+                return;
+            }
+
+            if (e.ColumnIndex >= 0 && grid.Columns[e.ColumnIndex].Name is "NameText" or "PathText")
+            {
+                var text = grid.Columns[e.ColumnIndex].Name == "NameText" ? model.Name : model.Path;
+                using var g = grid.CreateGraphics();
+                toolTip.SetToolTip(grid,
+                    g.MeasureString(text, grid.Font).Width > grid.Columns[e.ColumnIndex].Width - 8
+                        ? text
+                        : string.Empty);
+                return;
+            }
+
+            toolTip.SetToolTip(grid, string.Empty);
         };
 
         grid.CellMouseDoubleClick += (s, e) =>
@@ -246,13 +278,15 @@ internal sealed class EnvGridFactory : IEnvGridFactory
     }
 
     /// <summary>
-    /// Connects a filter box to the grid and applies the current text immediately.
+    /// Connects a filter box and its match-count label to the grid and applies the current text immediately.
     /// </summary>
     /// <param name="grid">The grid to filter.</param>
     /// <param name="filter">The text box that supplies the filter text.</param>
-    public void AttachFilter(DataGridView grid, TextBox filter)
+    /// <param name="count">The label that shows how many rows the current filter keeps visible.</param>
+    public void AttachFilter(DataGridView grid, TextBox filter, Label count)
     {
         _filters[grid] = filter;
+        _filterCounts[grid] = count;
         filter.TextChanged += (_, _) => ApplyFilter(grid);
     }
 
@@ -307,6 +341,7 @@ internal sealed class EnvGridFactory : IEnvGridFactory
                     row.Visible = true;
             }
 
+            UpdateFilterCount(grid, text, driftOnly);
             return;
         }
 
@@ -321,6 +356,51 @@ internal sealed class EnvGridFactory : IEnvGridFactory
         }
 
         EnsureVisibleSelection(grid);
+        UpdateFilterCount(grid, text, driftOnly);
+    }
+
+    /// <summary>
+    /// Writes the match count onto the filter row's label: empty while no restriction is active,
+    /// "No matches" when the filter hides everything, otherwise "N of M shown".
+    /// </summary>
+    /// <param name="grid">The grid whose count label should be updated.</param>
+    /// <param name="text">The trimmed filter text.</param>
+    /// <param name="driftOnly">Whether the drift-only restriction is active.</param>
+    private void UpdateFilterCount(DataGridView grid, string text, bool driftOnly)
+    {
+        if (_filterCounts.GetValueOrDefault(grid) is not { } count)
+            return;
+
+        if (text.Length == 0 && !driftOnly)
+        {
+            count.Text = string.Empty;
+            return;
+        }
+
+        var visible = grid.Rows.Cast<DataGridViewRow>().Count(row => row.Visible);
+
+        count.Text = visible == 0
+            ? "No matches"
+            : $"{visible} of {grid.Rows.Count} shown";
+    }
+
+    /// <summary>
+    /// The indicator column's glyph in words, so a row's state reads without the legend tooltip.
+    /// </summary>
+    /// <param name="model">The row's model.</param>
+    /// <returns>The tooltip text, or an empty string for an unchanged, unmarked row.</returns>
+    private static string DescribeState(EnvModel model)
+    {
+        if (model.IsCorrupted)
+            return "Corrupted — the value points to a missing location";
+
+        return model.State switch
+        {
+            EnvironmentalVariableState.Added => "Added — not applied yet",
+            EnvironmentalVariableState.Modified => $"Modified — original: {model.OriginalPath}",
+            EnvironmentalVariableState.Deleted => "Marked for deletion — not applied yet",
+            _ => string.Empty,
+        };
     }
 
     /// <summary>

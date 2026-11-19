@@ -16,6 +16,26 @@ internal partial class CreateForm : AbstractEntryForm
 
     }
 
+    /// <summary>
+    /// Warns inline while the typed name already exists, instead of asking only on submit.
+    /// </summary>
+    protected override string? CustomWarning()
+    {
+        var name = nameTextBox.Text.Trim();
+
+        if (name.Length == 0)
+            return null;
+
+        var existing = _scope.Contains(name) ? _scope.GetByName(name) : null;
+
+        if (existing is null)
+            return null;
+
+        return existing.State == EnvironmentalVariableState.Deleted
+            ? $"'{existing.Name}' is marked for deletion — creating it restores the row."
+            : $"'{existing.Name}' already exists — saving overwrites its value.";
+    }
+
     protected override void RunAction(object sender, EventArgs e)
     {
         var name = nameTextBox.Text.Trim();

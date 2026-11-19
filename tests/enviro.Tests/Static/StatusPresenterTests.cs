@@ -63,4 +63,18 @@ public class StatusPresenterTests
 
         Assert.Equal("2 drifted", summary.Drifted);
     }
+
+    [Fact]
+    public void The_drifted_count_is_exposed_separately_for_label_visibility()
+    {
+        var env = new EnvService(new UndoHistory());
+        ((EnvScope)env.User).Replace([Workspace.Row("A", "v")]);
+        env.User.GetByName("A")!.IsDrifted = true;
+
+        var summary = StatusPresenter.Describe(env, enableCorruptedValidation: true);
+
+        Assert.Equal(1, summary.DriftedCount);
+        Assert.Equal("1 drifted", summary.Drifted);
+        Assert.Equal(0, StatusPresenter.Describe(new EnvService(new UndoHistory()), true).DriftedCount);
+    }
 }

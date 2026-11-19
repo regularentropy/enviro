@@ -47,6 +47,9 @@ internal partial class MainForm : Form
     // Each command's projected controls, refreshed together so their enablement cannot drift.
     private readonly List<(MainCommand Command, ToolStripItem[] Targets)> _commandTargets = [];
 
+    // The View → "Show drifted only" item, kept so the drifted status label can toggle it.
+    private ToolStripMenuItem? _driftOnlyItem;
+
     public MainForm(IEnvService es, IActionFactory<EnvModel> af, IUpdateService us, ITabFactory tf, IEnvGridFactory gf, Func<AboutForm> aboutForm, IConfigService cs, IAppLog log, ICorruptedPathService corruption, ApplyCoordinator applyCoordinator, IVariableFileService variableFiles, IUndoHistory undoHistory, IRegFileService regFiles, IDriftService drift)
     {
         InitializeComponent();
@@ -96,7 +99,7 @@ internal partial class MainForm : Form
 
         // Legend for the grid's state-indicator column, available without using colour vision.
         statusStrip1.ShowItemToolTips = true;
-        pendingStatusLabel.ToolTipText = "Row markers: + added · ~ modified · – deleted · ! corrupted value";
+        pendingStatusLabel.ToolTipText = "Row markers: + added · ~ modified · – deleted · ! corrupted · ≠ drifted. Click the pending count to apply.";
 
         // Elevation cannot change while the process runs, so the label is written once here.
         elevationStatusLabel.Text = AdminChecker.IsAdmin() ? "Administrator" : "Standard user";
@@ -130,6 +133,19 @@ internal partial class MainForm : Form
 
         _commands = CreateCommandSurfaces();
         UpdateActionState();
+
+        // The status strip is clickable where it names an action: the pending count applies,
+        // the drifted count toggles the drifted-only view.
+        pendingStatusLabel.Click += (_, _) =>
+        {
+            if (_envService.HasChanges())
+                Apply(this, EventArgs.Empty);
+        };
+        driftStatusLabel.Click += (_, _) =>
+        {
+            if (_driftOnlyItem is { } item)
+                item.Checked = !item.Checked;
+        };
 
         optionsToolStripMenuItem.DropDownItems.Add(CreateThemeMenu());
     }
@@ -379,8 +395,8 @@ internal partial class MainForm : Form
                 return;
         }
 
-        // Rows are rebuilt from the OS; drop filters and the transient apply message so the view starts clean.
-        _gridFactory.ClearFilters();
+        // Rows are rebuilt from the OS; the filter text stays and re-applies through the list
+        // change, only the transient apply message is cleared.
         applyStatusLabel.Text = string.Empty;
         _applyStatusTimer.Stop();
 
@@ -461,6 +477,23 @@ internal partial class MainForm : Form
     private bool HasSelection() => GetActiveGrid() is { } grid && ControlHelper.GetCurrentModel(grid) is not null;
 
     /// <summary>
+    /// Copies one property of the active grid's current row to the clipboard and says so in the
+    /// status strip.
+    /// </summary>
+    /// <param name="selector">Which model property to copy.</param>
+    /// <param name="what">The property's name for the status message.</param>
+    private void CopyFromGrid(Func<EnvModel, string> selector, string what)
+    {
+        var model = GetActiveGrid() is { } grid ? ControlHelper.GetCurrentModel(grid) : null;
+
+        if (model is null)
+            return;
+
+        ClipboardHelper.CopyModelProperty(model, selector);
+        ShowTransientStatus($"Copied {what} of \"{model.Name}\".");
+    }
+
+    /// <summary>
     /// Whether the keyboard focus sits in a text box, where Delete and F2 must keep their normal
     /// text-editing meaning instead of acting on the selected row.
     /// </summary>
@@ -504,6 +537,10 @@ internal partial class MainForm : Form
         var add = new MainCommand("Add", [Keys.Control | Keys.N], () => CreateEntryClicked(this, EventArgs.Empty), CanMutate);
         var edit = new MainCommand("Edit", [Keys.F2, Keys.Control | Keys.E], () => EditEntryClicked(this, EventArgs.Empty), () => CanMutate() && HasSelection() && !FocusIsTextBox());
         var delete = new MainCommand("Delete", [Keys.Delete], () => DeleteEntryClicked(this, EventArgs.Empty), () => CanMutate() && HasSelection() && !FocusIsTextBox());
+        // Copy rides the same focus guard as Delete: in the filter box Ctrl+C keeps its native
+        // text-copy meaning because the projected menu item is disabled there.
+        var copyValue = new MainCommand("Copy value", [Keys.Control | Keys.C], () => CopyFromGrid(m => m.Path, "value"), () => HasSelection() && !FocusIsTextBox());
+        var copyName = new MainCommand("Copy name", [Keys.Control | Keys.Shift | Keys.C], () => CopyFromGrid(m => m.Name, "name"), () => HasSelection() && !FocusIsTextBox());
         var refresh = new MainCommand("Refresh", [Keys.F5], () => RefreshEntryClicked(this, EventArgs.Empty), () => true);
         var apply = new MainCommand("Apply", [Keys.Control | Keys.S], () => Apply(this, EventArgs.Empty), () => _envService.HasChanges());
         var undo = new MainCommand("Undo", [Keys.Control | Keys.Z], () => _envService.Undo(), () => _envService.CanUndo && !FocusIsTextBox());
@@ -524,6 +561,9 @@ internal partial class MainForm : Form
         Project(add, addToolStripButton, variablesMenu);
         Project(edit, editToolStripButton, variablesMenu);
         Project(delete, deleteToolStripButton, variablesMenu);
+        variablesMenu.DropDownItems.Add(new ToolStripSeparator());
+        Project(copyValue, null, variablesMenu);
+        Project(copyName, null, variablesMenu);
         Project(apply, applyToolStripButton, variablesMenu);
 
         // Menu-only: undo/redo are workspace commands, not row actions, so the text-only toolbar
@@ -537,9 +577,10 @@ internal partial class MainForm : Form
         Project(refresh, refreshToolStripButton, viewMenu);
         Project(focusFilter, null, viewMenu);
         viewMenu.DropDownItems.Add(CreateCorruptedValidationMenu());
-        viewMenu.DropDownItems.Add(CreateDriftOnlyMenu());
+        _driftOnlyItem = CreateDriftOnlyMenu();
+        viewMenu.DropDownItems.Add(_driftOnlyItem);
 
-        return new MainCommandTable([exportVariables, importVariables, restartAsAdmin, add, edit, delete, refresh, apply, focusFilter, undo, redo]);
+        return new MainCommandTable([exportVariables, importVariables, restartAsAdmin, add, edit, delete, copyValue, copyName, refresh, apply, focusFilter, undo, redo]);
     }
 
     /// <summary>
@@ -578,9 +619,10 @@ internal partial class MainForm : Form
 
         pendingStatusLabel.Text = status.Pending;
 
-        // Drift detection has no toggle, so its count stays visible whenever it is non-zero.
+        // The drifted count occupies the strip only while there is drift to look at; clicking
+        // it toggles the drifted-only view.
         driftStatusLabel.Text = status.Drifted;
-        driftStatusLabel.Visible = true;
+        driftStatusLabel.Visible = status.DriftedCount > 0;
 
         if (status.ShowCorrupted)
         {

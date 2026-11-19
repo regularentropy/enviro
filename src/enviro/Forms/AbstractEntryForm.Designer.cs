@@ -41,6 +41,7 @@
             entriesButton = new Button();
             addButton = new Button();
             cancelButton = new Button();
+            errorLabel = new Label();
             tableLayoutPanel1.SuspendLayout();
             tableLayoutPanel2.SuspendLayout();
             tableLayoutPanel3.SuspendLayout();
@@ -54,16 +55,18 @@
             tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             tableLayoutPanel1.Controls.Add(tableLayoutPanel2, 0, 0);
             tableLayoutPanel1.Controls.Add(tableLayoutPanel3, 0, 1);
-            tableLayoutPanel1.Controls.Add(tableLayoutPanel5, 0, 2);
+            tableLayoutPanel1.Controls.Add(errorLabel, 0, 2);
+            tableLayoutPanel1.Controls.Add(tableLayoutPanel5, 0, 3);
             tableLayoutPanel1.Dock = DockStyle.Fill;
             tableLayoutPanel1.Location = new Point(0, 0);
             tableLayoutPanel1.Name = "tableLayoutPanel1";
             tableLayoutPanel1.Padding = new Padding(16, 14, 16, 12);
-            tableLayoutPanel1.RowCount = 3;
+            tableLayoutPanel1.RowCount = 4;
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            tableLayoutPanel1.Size = new Size(520, 180);
+            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            tableLayoutPanel1.Size = new Size(520, 204);
             tableLayoutPanel1.TabIndex = 0;
             // 
             // tableLayoutPanel2
@@ -230,11 +233,22 @@
             cancelButton.UseVisualStyleBackColor = true;
             cancelButton.Click += Close;
             // 
+            // errorLabel
+            // 
+            errorLabel.AutoSize = true;
+            errorLabel.Dock = DockStyle.Top;
+            errorLabel.Location = new Point(16, 178);
+            errorLabel.Margin = new Padding(0, 4, 0, 0);
+            errorLabel.Name = "errorLabel";
+            errorLabel.Size = new Size(0, 15);
+            errorLabel.TabIndex = 3;
+            errorLabel.Text = "";
+            // 
             // AbstractEntryForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(520, 180);
+            ClientSize = new Size(520, 204);
             Controls.Add(tableLayoutPanel1);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -270,5 +284,6 @@
         protected TextBox pathTextBox;
         protected Button browseButton;
         protected Button entriesButton;
+        protected Label errorLabel;
     }
 }

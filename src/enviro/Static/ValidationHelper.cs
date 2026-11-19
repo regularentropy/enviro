@@ -14,21 +14,9 @@ internal static class ValidationHelper
     /// <returns>True if both name and path are valid, false otherwise.</returns>
     public static bool ValidateEnvironmentVariableInput(string name, string path)
     {
-        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(path))
+        if (InputError(name, path) is { } error)
         {
-            DialogHelper.ShowWarning("Name and value cannot be empty or consist only of spaces.", "Validation");
-            return false;
-        }
-
-        if (ContainsInvalidCharacters(name))
-        {
-            DialogHelper.ShowWarning("Name cannot contain '=' or a null character.", "Validation");
-            return false;
-        }
-
-        if (ContainsInvalidValueCharacters(path))
-        {
-            DialogHelper.ShowWarning("Value cannot contain a null character.", "Validation");
+            DialogHelper.ShowWarning(error, "Validation");
             return false;
         }
 
@@ -42,10 +30,28 @@ internal static class ValidationHelper
     /// <param name="path">The environmental variable path to check.</param>
     /// <returns>True if the input may be submitted, false otherwise.</returns>
     public static bool IsValidEnvironmentVariableInput(string name, string path) =>
-        !string.IsNullOrWhiteSpace(name)
-        && !string.IsNullOrWhiteSpace(path)
-        && !ContainsInvalidCharacters(name)
-        && !ContainsInvalidValueCharacters(path);
+        InputError(name, path) is null;
+
+    /// <summary>
+    /// The same rules as <see cref="ValidateEnvironmentVariableInput"/>, but returns why the input
+    /// is rejected instead of showing a dialog, so a form can show the reason inline.
+    /// </summary>
+    /// <param name="name">The environmental variable name to check.</param>
+    /// <param name="path">The environmental variable path to check.</param>
+    /// <returns>The rejection message, or null when the input is valid.</returns>
+    public static string? InputError(string name, string path)
+    {
+        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(path))
+            return "Name and value cannot be empty or consist only of spaces.";
+
+        if (ContainsInvalidCharacters(name))
+            return "Name cannot contain '=' or a null character.";
+
+        if (ContainsInvalidValueCharacters(path))
+            return "Value cannot contain a null character.";
+
+        return null;
+    }
 
     /// <summary>
     /// Checks a variable name for characters Windows cannot accept: '=' separates name from value in the

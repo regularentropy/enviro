@@ -79,4 +79,22 @@ public class ValidationHelperTests
             dir.Delete(recursive: true);
         }
     }
+
+    [Theory]
+    [InlineData("FOO", "bar", null)]
+    [InlineData("", "bar", "Name and value cannot be empty or consist only of spaces.")]
+    [InlineData("FOO", "   ", "Name and value cannot be empty or consist only of spaces.")]
+    [InlineData("A=B", "bar", "Name cannot contain '=' or a null character.")]
+    [InlineData("FOO", "ba\0r", "Value cannot contain a null character.")]
+    public void InputError_names_the_rejection_reason(string name, string value, string? expected) =>
+        Assert.Equal(expected, ValidationHelper.InputError(name, value));
+
+    [Theory]
+    [InlineData("FOO", "bar")]
+    [InlineData("A=B", "bar")]
+    [InlineData("", "bar")]
+    public void InputError_agrees_with_IsValidEnvironmentVariableInput(string name, string value) =>
+        Assert.Equal(
+            ValidationHelper.IsValidEnvironmentVariableInput(name, value),
+            ValidationHelper.InputError(name, value) is null);
 }

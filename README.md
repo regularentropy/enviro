@@ -1,4 +1,6 @@
 ﻿# Enviro
+[![Build](https://github.com/regularentropy/enviro/actions/workflows/build.yml/badge.svg)](https://github.com/regularentropy/enviro/actions/workflows/build.yml)
+[![Release](https://img.shields.io/github/v/release/regularentropy/enviro)](https://github.com/regularentropy/enviro/releases)
 [![.NET](https://img.shields.io/badge/.NET-10-blue.svg)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue.svg)]()
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
@@ -15,12 +17,14 @@ Enviro addresses this with a classic Windows interface, change tracking for ever
 
 ## Features
 
-- 🎯 **Native WinForms**: Built with Windows Forms for a smaller binary size & performance.
-- 📋 **Change Tracking**: See exactly what was modified, deleted, or created in your environment variables.
-- ✅ **Path Validation**: Detects variables pointing to invalid/non-existent paths.
-- 💾 **Import/Export**: Back up and restore your environment variables to a JSON or .reg (registry) file, choosing exactly which variables travel.
-- 🌓 **Theme Support**: Follows the Windows light/dark mode, with a System/Light/Dark choice in Options that applies on the next start.
-- ⚡ **Instant Apply**: Changes take effect immediately without system restart.
+- 📋 **Change Tracking**: See exactly what was modified, deleted, or created.
+- ✅ **Path Validation**: Detects variables pointing to invalid paths.
+- 💾 **Import/Export**: Back up and restore your variables to a JSON or .reg file.
+- ≠ **Drift Detection**: Flags variables changed outside Enviro (setx, installers, GPO).
+- ☑️ **Multi-Select**: Bulk delete, copy, and drift actions on selected rows.
+- 🪟 **Registry Jump**: "Open in Registry Editor" jumps straight to the variable's key in regedit.
+- 🌓 **Theme Support**: Follows the Windows light/dark mode.
+- ⚡ **Instant Apply**: Changes take effect immediately without restart.
 
 ## Requirements
 
@@ -34,6 +38,39 @@ Enviro addresses this with a classic Windows interface, change tracking for ever
 2. Edit user variables, or provide admin credentials for system variables
 3. Review changes before applying — the view will show all modifications
 4. Apply changes
+
+## Keyboard shortcuts
+
+Main window:
+
+| Shortcut | Action |
+| --- | --- |
+| `Ctrl+N` | Add variable |
+| `F2` / `Ctrl+E` | Edit selected variable |
+| `Delete` | Delete selected variable(s) |
+| `Ctrl+C` | Copy value (or `NAME=value` lines for a multi-selection) |
+| `Ctrl+Shift+C` | Copy name (or bare names for a multi-selection) |
+| `Ctrl+A` | Select all visible rows |
+| `Ctrl+F` | Focus the filter box (`Esc` clears it) |
+| `F5` | Refresh |
+| `Ctrl+S` | Apply pending changes |
+| `Ctrl+Z` / `Ctrl+Y` | Undo / Redo |
+
+Variable editor (PATH-style values):
+
+| Shortcut | Action |
+| --- | --- |
+| `Ctrl+Up` / `Ctrl+Down` | Move segment up / down (drag also works) |
+| `Ctrl+Z` / `Ctrl+Y` | Undo / Redo segment changes |
+| `Enter` / `Esc` | Confirm / Cancel |
+
+Import/export review window:
+
+| Shortcut | Action |
+| --- | --- |
+| `Space` | Toggle checkbox of the selected row(s) |
+| `Delete` | Uncheck selected row(s) |
+| `Esc` | Clear the filter |
 
 ## Installation
 
@@ -71,4 +108,4 @@ dotnet publish src/enviro/enviro.csproj --configuration Release --output ./publi
 
 ## License
 
-[GPLv3](LICENSE) ©2025 regularentropy
+[GPLv3](LICENSE) ©2026 regularentropy

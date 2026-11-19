@@ -162,6 +162,10 @@ public class RegFileServiceTests : IDisposable
     {
         var env = NewEnvService(out _);
         var json = new VariableFileService(_log);
+        // EnvService loads the real environment on Windows (User/Machine registry targets are
+        // empty on Linux), so clear both scopes to keep the expected counts platform-independent.
+        ((EnvScope)env.User).Replace([]);
+        ((EnvScope)env.Machine).Replace([]);
         env.User.Upsert("ENVIRO_TEST_B", "2", overwrite: true);
         env.User.Upsert("ENVIRO_TEST_A", "1", overwrite: true);
 

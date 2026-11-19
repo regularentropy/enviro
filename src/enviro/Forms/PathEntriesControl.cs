@@ -1,3 +1,4 @@
+using enviro.Models;
 using enviro.Services;
 using enviro.Static;
 using Microsoft.WindowsAPICodePack.Dialogs;
@@ -17,6 +18,12 @@ internal partial class PathEntriesControl : UserControl
     private readonly ICorruptedPathService? _corruption;
 
     private bool _suppressChange;
+
+    /// <summary>Segments of the live registry value while the variable is drifted; null when it is not.</summary>
+    private HashSet<string>? _liveSegments;
+
+    /// <summary>True when the variable was deleted outside enviro, so every segment is drifted.</summary>
+    private bool _driftAll;
 
     private const int UndoLimit = 100;
 
@@ -64,6 +71,23 @@ internal partial class PathEntriesControl : UserControl
         segmentsGrid.CellValueChanged += GridCellValueChanged;
         segmentsGrid.CellEndEdit += GridCellEndEdit;
 
+        // Drift overlay: a segment the live registry no longer holds is painted with the drifted
+        // row colour, so an external edit reads directly in the segment list.
+        segmentsGrid.CellFormatting += (s, e) =>
+        {
+            if (e.RowIndex < 0 || (!_driftAll && _liveSegments is null))
+                return;
+
+            var value = segmentsGrid.Rows[e.RowIndex].Cells[valueColumn.Index].Value?.ToString()?.Trim() ?? string.Empty;
+
+            if (_driftAll || !_liveSegments!.Contains(value))
+            {
+                var drift = ThemePalette.Row(EnvironmentalVariableState.Unchanged, isCorrupted: false, isDrifted: true);
+                e.CellStyle.BackColor = drift.Background;
+                e.CellStyle.SelectionBackColor = drift.SelectionBackground;
+            }
+        };
+
         UpdateActionState();
     }
 
@@ -74,6 +98,25 @@ internal partial class PathEntriesControl : UserControl
         ValidationHelper.JoinPathList(segmentsGrid.Rows
             .Cast<DataGridViewRow>()
             .Select(row => row.Cells[valueColumn.Index].Value?.ToString()?.Trim() ?? string.Empty));
+
+    /// <summary>
+    /// Sets the drift overlay from the bound row: when the variable was changed outside enviro,
+    /// segments the live registry value no longer contains are highlighted; when it was deleted
+    /// outside enviro, every segment is. Clears the overlay when the row is not drifted.
+    /// </summary>
+    /// <param name="drifted">Whether the row's drift flag is set.</param>
+    /// <param name="liveValue">The value the registry currently holds, or null when it holds none.</param>
+    public void SetDrift(bool drifted, string? liveValue)
+    {
+        _driftAll = drifted && liveValue is null;
+        _liveSegments = drifted && liveValue is not null
+            ? new HashSet<string>(
+                ValidationHelper.SplitPathList(liveValue).Select(segment => segment.Trim()),
+                StringComparer.OrdinalIgnoreCase)
+            : null;
+
+        segmentsGrid.Invalidate();
+    }
 
     /// <summary>
     /// Replaces the list with the non-blank segments of a value. Does not raise

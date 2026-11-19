@@ -36,6 +36,21 @@ internal interface IEnvGridFactory
     /// Clears every attached filter box, showing all rows again.
     /// </summary>
     void ClearFilters();
+
+    /// <summary>
+    /// Shows only drifted rows on a grid. Combined with the filter text, so both restrictions can
+    /// be active at once.
+    /// </summary>
+    /// <param name="grid">The grid to filter.</param>
+    /// <param name="on">True to show only drifted rows, false to clear the restriction.</param>
+    void SetDriftOnly(DataGridView grid, bool on);
+
+    /// <summary>
+    /// Whether a grid currently shows drifted rows only.
+    /// </summary>
+    /// <param name="grid">The grid whose flag should be returned.</param>
+    /// <returns>True when the grid shows drifted rows only.</returns>
+    bool DriftOnlyOf(DataGridView grid);
 }
 
 /// <summary>
@@ -52,6 +67,9 @@ internal sealed class EnvGridFactory : IEnvGridFactory
 
     // Filter boxes are owned by the tab pages; the grids live for the lifetime of the window.
     private readonly Dictionary<DataGridView, TextBox> _filters = [];
+
+    // Session-only drift filter state, per grid, in the same mapping style as the filter boxes.
+    private readonly Dictionary<DataGridView, bool> _driftOnly = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EnvGridFactory"/> class.
@@ -142,11 +160,14 @@ internal sealed class EnvGridFactory : IEnvGridFactory
 
             if (e.ListChangedType == ListChangedType.ItemChanged)
             {
-                // State and IsCorrupted have no bound column, so DataGridView repaints no cell
-                // for them and the row keeps its old colour until something else invalidates the
-                // grid. A state change carries no new value, so it asks for no scan either; a
-                // reset or restore still reaches the scan through its Name/Path changes.
-                if (e.PropertyDescriptor?.Name is nameof(EnvModel.IsCorrupted) or nameof(EnvModel.State))
+                // State, IsCorrupted and the drift overlay have no bound column, so DataGridView
+                // repaints no cell for them and the row keeps its old colour until something else
+                // invalidates the grid. A state change carries no new value, so it asks for no scan
+                // either; a reset or restore still reaches the scan through its Name/Path changes.
+                // The drift properties never ask for a scan either: DriftService runs on its own
+                // triggers, never as a reaction to its own overlay writes.
+                if (e.PropertyDescriptor?.Name is nameof(EnvModel.IsCorrupted) or nameof(EnvModel.State)
+                    or nameof(EnvModel.IsDrifted) or nameof(EnvModel.LiveValue))
                 {
                     grid.Invalidate();
                     return;
@@ -159,6 +180,16 @@ internal sealed class EnvGridFactory : IEnvGridFactory
         // Review the rows already bound to this grid; the service ignores the request while
         // validation is off.
         _corruption.RequestScan(scope);
+
+        // A drifted row shows what the registry holds now on hover; other rows clear the tooltip.
+        var toolTip = new ToolTip();
+        grid.CellMouseEnter += (s, e) =>
+        {
+            if (e.RowIndex >= 0 && grid.Rows[e.RowIndex].DataBoundItem is EnvModel { IsDrifted: true } drifted)
+                toolTip.SetToolTip(grid, $"enviro: {drifted.OriginalPath}\nsystem: {drifted.LiveValue ?? "(deleted)"}");
+            else
+                toolTip.SetToolTip(grid, string.Empty);
+        };
 
         grid.CellMouseDoubleClick += (s, e) =>
         {
@@ -242,20 +273,33 @@ internal sealed class EnvGridFactory : IEnvGridFactory
             FilterOf(grid)?.Clear();
     }
 
+    /// <inheritdoc/>
+    public void SetDriftOnly(DataGridView grid, bool on)
+    {
+        _driftOnly[grid] = on;
+        ApplyFilter(grid);
+    }
+
+    /// <inheritdoc/>
+    public bool DriftOnlyOf(DataGridView grid) => _driftOnly.GetValueOrDefault(grid);
+
     /// <summary>
-    /// Hides the rows whose name and value do not contain the filter text. The bound list itself is
+    /// Hides the rows the filter text and the drift-only flag exclude. The bound list itself is
     /// never touched, so sorting and change tracking are unaffected. The selection is kept on a
     /// visible row; when nothing matches, the current cell is cleared.
     /// </summary>
     /// <param name="grid">The grid whose filter should be applied.</param>
     private void ApplyFilter(DataGridView grid)
     {
-        if (FilterOf(grid) is not { } filter)
-            return;
+        var driftOnly = DriftOnlyOf(grid);
+        var text = FilterOf(grid)?.Text.Trim() ?? string.Empty;
 
-        var text = filter.Text.Trim();
+        // One predicate for the guard and the loop: drift-only can hide the current row even with
+        // an empty text filter (Matches is true for empty text), and hiding the currency manager's
+        // row throws.
+        bool Visible(EnvModel m) => Matches(m, text) && (!driftOnly || m.IsDrifted);
 
-        if (text.Length == 0)
+        if (text.Length == 0 && !driftOnly)
         {
             foreach (DataGridViewRow row in grid.Rows)
             {
@@ -267,23 +311,24 @@ internal sealed class EnvGridFactory : IEnvGridFactory
         }
 
         // Clear the current cell first so WinForms does not try to keep a row that is about to be hidden.
-        if (grid.CurrentRow is { DataBoundItem: EnvModel current } && !Matches(current, text))
+        if (grid.CurrentRow is { DataBoundItem: EnvModel current } && !Visible(current))
             grid.CurrentCell = null;
 
         foreach (DataGridViewRow row in grid.Rows)
         {
             if (row.DataBoundItem is EnvModel model)
-                row.Visible = Matches(model, text);
+                row.Visible = Visible(model);
         }
 
         EnsureVisibleSelection(grid);
     }
 
     /// <summary>
-    /// Checks whether a variable matches the filter text in its name or value.
+    /// Checks whether a variable matches the filter text in its name or value. An empty text
+    /// matches everything.
     /// </summary>
     /// <param name="model">The variable to test.</param>
-    /// <param name="text">The trimmed, non-empty filter text.</param>
+    /// <param name="text">The trimmed filter text, possibly empty.</param>
     /// <returns>True when the name or value contains the text, ignoring case.</returns>
     private static bool Matches(EnvModel model, string text) =>
         model.Name.Contains(text, StringComparison.OrdinalIgnoreCase)

@@ -26,6 +26,7 @@ internal partial class MainForm : Form
     private readonly IVariableFileService _variableFiles;
     private readonly IRegFileService _regFiles;
     private readonly IUndoHistory _undoHistory;
+    private readonly IDriftService _drift;
 
     // Builds the About dialog on demand, so the shell holds no container.
     private readonly Func<AboutForm> _aboutFormFactory;
@@ -37,13 +38,16 @@ internal partial class MainForm : Form
     // Clears the transient message (applied changes, failed settings save) from the status strip.
     private readonly System.Windows.Forms.Timer _applyStatusTimer;
 
+    // Re-checks the live registry periodically so external changes surface without a refresh.
+    private readonly System.Windows.Forms.Timer _driftTimer;
+
     // Every command the shell exposes, defined once; the shortcuts dispatch through it.
     private readonly MainCommandTable _commands;
 
     // Each command's projected controls, refreshed together so their enablement cannot drift.
     private readonly List<(MainCommand Command, ToolStripItem[] Targets)> _commandTargets = [];
 
-    public MainForm(IEnvService es, IActionFactory<EnvModel> af, IUpdateService us, ITabFactory tf, IEnvGridFactory gf, Func<AboutForm> aboutForm, IConfigService cs, IAppLog log, ICorruptedPathService corruption, ApplyCoordinator applyCoordinator, IVariableFileService variableFiles, IUndoHistory undoHistory, IRegFileService regFiles)
+    public MainForm(IEnvService es, IActionFactory<EnvModel> af, IUpdateService us, ITabFactory tf, IEnvGridFactory gf, Func<AboutForm> aboutForm, IConfigService cs, IAppLog log, ICorruptedPathService corruption, ApplyCoordinator applyCoordinator, IVariableFileService variableFiles, IUndoHistory undoHistory, IRegFileService regFiles, IDriftService drift)
     {
         InitializeComponent();
 
@@ -64,6 +68,7 @@ internal partial class MainForm : Form
         _variableFiles = variableFiles;
         _regFiles = regFiles;
         _undoHistory = undoHistory;
+        _drift = drift;
 
         ApplyElevationWindowGeometry();
 
@@ -73,6 +78,16 @@ internal partial class MainForm : Form
             _applyStatusTimer.Stop();
             applyStatusLabel.Text = string.Empty;
         };
+
+        // Drift has no toggle: the live registry is re-checked periodically so an external
+        // change made while the app idles still shows up without a manual refresh.
+        _driftTimer = new System.Windows.Forms.Timer { Interval = 30000 };
+        _driftTimer.Tick += (_, _) =>
+        {
+            _drift.CheckAll();
+            UpdateStatusStrip();
+        };
+        _driftTimer.Start();
 
         // A failed settings save is reported without a dialog: the app keeps running, just unsaved.
         _configService.SaveFailed += OnConfigSaveFailed;
@@ -189,6 +204,29 @@ internal partial class MainForm : Form
         DialogHelper.ShowInfo(
             $"The {item.Text} theme will be used the next time Enviro starts.",
             "Theme");
+    }
+
+    /// <summary>
+    /// Builds the View menu's "show drifted only" toggle for both grids.
+    /// </summary>
+    /// <remarks>
+    /// The toggle is session-only, so unlike the corruption check it is never persisted.
+    /// </remarks>
+    /// <returns>The checkable item, with its toggle handler attached.</returns>
+    private ToolStripMenuItem CreateDriftOnlyMenu()
+    {
+        var item = new ToolStripMenuItem("Show drifted only")
+        {
+            CheckOnClick = true,
+            ToolTipText = "Shows only the rows whose value has changed in the registry since enviro last read it."
+        };
+
+        item.CheckedChanged += (_, _) =>
+        {
+            foreach (var grid in AllTab.TabPages.Cast<TabPage>().SelectMany(t => t.Controls.OfType<DataGridView>()))
+                _gridFactory.SetDriftOnly(grid, item.Checked);
+        };
+        return item;
     }
 
     private void CorruptedVarsButtonClicked(object? sender, EventArgs e)
@@ -350,6 +388,8 @@ internal partial class MainForm : Form
 
         // The reloaded models start clean; review both scopes again and refresh the status strip.
         _corruption.RequestScanAll();
+        _drift.CheckAll();
+        UpdateStatusStrip();
         UpdateActionState();
     }
 
@@ -497,6 +537,7 @@ internal partial class MainForm : Form
         Project(refresh, refreshToolStripButton, viewMenu);
         Project(focusFilter, null, viewMenu);
         viewMenu.DropDownItems.Add(CreateCorruptedValidationMenu());
+        viewMenu.DropDownItems.Add(CreateDriftOnlyMenu());
 
         return new MainCommandTable([exportVariables, importVariables, restartAsAdmin, add, edit, delete, refresh, apply, focusFilter, undo, redo]);
     }
@@ -536,6 +577,10 @@ internal partial class MainForm : Form
             _envService, _configService.Config.EnableCorruptedValidation);
 
         pendingStatusLabel.Text = status.Pending;
+
+        // Drift detection has no toggle, so its count stays visible whenever it is non-zero.
+        driftStatusLabel.Text = status.Drifted;
+        driftStatusLabel.Visible = true;
 
         if (status.ShowCorrupted)
         {
@@ -784,6 +829,11 @@ internal partial class MainForm : Form
 
         // A successful apply resets the workspace; start from the full list again.
         _gridFactory.ClearFilters();
+
+        // The written rows now match the registry, so the drift overlay is stale until re-checked.
+        _drift.CheckAll();
+        UpdateStatusStrip();
+
         ShowTransientStatus(outcome.Message);
     }
 
@@ -818,6 +868,10 @@ internal partial class MainForm : Form
         base.OnShown(e);
 
         _corruption.RequestScanAll();
+
+        // First drift check once the window is up, so the label shows a real count.
+        _drift.CheckAll();
+        UpdateStatusStrip();
     }
 
     /// <summary>
@@ -833,6 +887,7 @@ internal partial class MainForm : Form
         _corruption.Cancel();
 
         _applyStatusTimer.Stop();
+        _driftTimer.Stop();
         base.OnFormClosed(e);
     }
 }

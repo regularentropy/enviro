@@ -32,16 +32,19 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
 {
     private readonly IEnvService _env;
     private readonly IActionFactory<EnvModel> _entryFormFactory;
+    private readonly IDriftService _drift;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ContextMenuFactory"/> class.
     /// </summary>
     /// <param name="envService">The service for managing environmental variables.</param>
     /// <param name="factory">The factory for creating action forms.</param>
-    public ContextMenuFactory(IEnvService envService, IActionFactory<EnvModel> factory)
+    /// <param name="drift">The service that reverts drifted rows to the baseline.</param>
+    public ContextMenuFactory(IEnvService envService, IActionFactory<EnvModel> factory, IDriftService drift)
     {
         _env = envService;
         _entryFormFactory = factory;
+        _drift = drift;
     }
 
     /// <summary>
@@ -83,6 +86,23 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
         // Only a modified row has an original value that differs from the current one.
         if (pm.State == EnvironmentalVariableState.Modified)
             cms.Items.Add("Copy original path", null, (_, _) => CopyToClipboard(grid, m => m.OriginalPath));
+
+        // Only a drifted row carries the live value the registry holds instead of the baseline.
+        if (pm.IsDrifted)
+        {
+            // Accepting the live value is an in-memory edit like Reset, so it is ungated.
+            cms.Items.Add("Use live value", null, (_, _) => scope?.AcceptDrift(pm));
+
+            // Reverting writes the baseline back to the registry, so it needs the permission.
+            if (canMutate)
+                cms.Items.Add("Revert to enviro value", null, (_, _) =>
+                {
+                    if (!_drift.Revert(pm))
+                        DialogHelper.ShowError($"Could not write the original value of \"{pm.Name}\" back to the registry.", "Revert");
+                });
+
+            cms.Items.Add("Copy live value", null, (_, _) => CopyToClipboard(grid, m => m.LiveValue!));
+        }
 
         return cms;
     }

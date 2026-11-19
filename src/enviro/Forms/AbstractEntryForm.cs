@@ -1,3 +1,4 @@
+using enviro.Models;
 using enviro.Services;
 using enviro.Static;
 using Microsoft.WindowsAPICodePack.Dialogs;
@@ -66,6 +67,15 @@ internal abstract partial class AbstractEntryForm : Form
     /// always allow submission, so the default is <see langword="true"/>.
     /// </summary>
     protected virtual bool HasPendingChange() => true;
+
+    /// <summary>
+    /// Forwards the row's drift overlay to the segment grid: segments the live registry no longer
+    /// holds (or every segment, when the variable was deleted outside enviro) are highlighted
+    /// there with the drifted row colour.
+    /// </summary>
+    /// <param name="pm">The bound row, or null to clear the drift display.</param>
+    protected void UpdateDriftOverlay(EnvModel? pm) =>
+        _entriesControl.SetDrift(pm is { IsDrifted: true }, pm?.LiveValue);
 
     private void TextBox_Changed(object? sender, EventArgs e) => UpdateActionState();
 

@@ -36,6 +36,7 @@ internal static class ThemePalette
         Modified = new(Color.LightYellow, Color.FromArgb(229, 214, 128)),
         Deleted = new(Color.LightCoral, Color.FromArgb(222, 133, 133)),
         Corrupted = new(Color.Red, Color.FromArgb(230, 96, 96)),
+        Drifted = new(Color.FromArgb(255, 226, 173), Color.FromArgb(242, 196, 120)),
         SegmentExists = Color.ForestGreen,
         SegmentMissing = Color.Firebrick,
         SegmentNotPath = SystemColors.GrayText,
@@ -68,6 +69,7 @@ internal static class ThemePalette
         Modified = new(Color.FromArgb(58, 52, 24), Color.FromArgb(88, 79, 36)),
         Deleted = new(Color.FromArgb(68, 34, 34), Color.FromArgb(100, 50, 50)),
         Corrupted = new(Color.FromArgb(90, 26, 26), Color.FromArgb(128, 38, 38)),
+        Drifted = new(Color.FromArgb(66, 44, 20), Color.FromArgb(96, 64, 28)),
         SegmentExists = Color.FromArgb(126, 217, 140),
         SegmentMissing = Color.FromArgb(255, 128, 128),
         SegmentNotPath = Color.FromArgb(160, 160, 160),
@@ -172,15 +174,19 @@ internal static class ThemePalette
     public static Color InfoBackground => Active.InfoBackground;
 
     /// <summary>
-    /// The backgrounds of one grid row: its state colour, or the corrupted overlay when it applies.
+    /// The backgrounds of one grid row: its state colour, or an overlay when one applies.
     /// </summary>
     /// <param name="state">The row's edit state.</param>
     /// <param name="isCorrupted">Whether the corrupted-path overlay marks the row.</param>
+    /// <param name="isDrifted">Whether the drift overlay marks the row.</param>
     /// <returns>The normal and selected backgrounds for the row.</returns>
-    public static RowColors Row(EnvironmentalVariableState state, bool isCorrupted)
+    public static RowColors Row(EnvironmentalVariableState state, bool isCorrupted, bool isDrifted)
     {
         if (isCorrupted)
             return Active.Corrupted;
+
+        if (isDrifted)
+            return Active.Drifted;
 
         return state switch
         {
@@ -246,6 +252,7 @@ internal static class ThemePalette
         public required RowColors Modified { get; init; }
         public required RowColors Deleted { get; init; }
         public required RowColors Corrupted { get; init; }
+        public required RowColors Drifted { get; init; }
         public required Color SegmentExists { get; init; }
         public required Color SegmentMissing { get; init; }
         public required Color SegmentNotPath { get; init; }

@@ -48,6 +48,7 @@ namespace enviro
             services.AddSingleton<ITabFactory, TabFactory>();
 
             services.AddSingleton<ICorruptedPathService, CorruptedPathService>();
+            services.AddSingleton<IDriftService, DriftService>();
 
             services.AddSingleton<IUpdateService, UpdateService>();
             services.AddSingleton<IEnvAdapter, EnvAdapter>();

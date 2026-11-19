@@ -20,6 +20,15 @@ internal partial class EditForm : AbstractEntryForm
         nameTextBox.Text = pm.Name;
         pathTextBox.Text = pm.Path;
 
+        // The drift overlay can appear or clear while this dialog is open (the periodic drift
+        // check runs on the UI thread), so the warning follows the row's flag.
+        UpdateDriftOverlay(pm);
+        pm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(EnvModel.IsDrifted) or nameof(EnvModel.LiveValue))
+                UpdateDriftOverlay(pm);
+        };
+
         this.Text = "Edit";
         addButton.Text = "Save";
     }

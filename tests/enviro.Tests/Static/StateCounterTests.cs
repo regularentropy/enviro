@@ -14,8 +14,8 @@ public class StateCounterTests
         return scope;
     }
 
-    private static EnvModel Row(string name, EnvironmentalVariableState state, bool corrupted = false) =>
-        new() { Name = name, OriginalName = name, Path = "v", OriginalPath = "v", State = state, IsCorrupted = corrupted };
+    private static EnvModel Row(string name, EnvironmentalVariableState state, bool corrupted = false, bool drifted = false) =>
+        new() { Name = name, OriginalName = name, Path = "v", OriginalPath = "v", State = state, IsCorrupted = corrupted, IsDrifted = drifted };
 
     [Fact]
     public void CountByState_counts_only_the_requested_state()
@@ -42,5 +42,16 @@ public class StateCounterTests
             Row("c", EnvironmentalVariableState.Unchanged, corrupted: true));
 
         Assert.Equal(2, StateCounter.CountCorrupted(scope));
+    }
+
+    [Fact]
+    public void CountDrifted_counts_the_overlay_only()
+    {
+        var scope = ScopeWith(
+            Row("a", EnvironmentalVariableState.Unchanged, drifted: true),
+            Row("b", EnvironmentalVariableState.Modified), // state does not matter for the overlay
+            Row("c", EnvironmentalVariableState.Unchanged, drifted: true));
+
+        Assert.Equal(2, StateCounter.CountDrifted(scope));
     }
 }

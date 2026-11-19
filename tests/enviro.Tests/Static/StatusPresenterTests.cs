@@ -18,6 +18,7 @@ public class StatusPresenterTests
         Assert.Equal("No pending changes", summary.Pending);
         Assert.True(summary.ShowCorrupted);
         Assert.Equal("0 corrupted", summary.Corrupted);
+        Assert.Equal("0 drifted", summary.Drifted);
     }
 
     [Fact]
@@ -47,5 +48,19 @@ public class StatusPresenterTests
         env.Machine.GetByName("ENVIRO_TEST_B")!.IsCorrupted = true;
 
         Assert.Equal("2 corrupted", StatusPresenter.Describe(env, true).Corrupted);
+    }
+
+    [Fact]
+    public void The_drifted_count_sums_both_scopes()
+    {
+        var env = new EnvService(new UndoHistory());
+        ((EnvScope)env.User).Replace([Workspace.Row("A", "v")]);
+        ((EnvScope)env.Machine).Replace([Workspace.Row("M", "w")]);
+        env.User.GetByName("A")!.IsDrifted = true;
+        env.Machine.GetByName("M")!.IsDrifted = true;
+
+        var summary = StatusPresenter.Describe(env, enableCorruptedValidation: true);
+
+        Assert.Equal("2 drifted", summary.Drifted);
     }
 }

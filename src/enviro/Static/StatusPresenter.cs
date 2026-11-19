@@ -4,12 +4,13 @@ using enviro.Services;
 namespace enviro.Static;
 
 /// <summary>
-/// The content of the status strip: pending work and the corrupted-row count.
+/// The content of the status strip: pending work plus the corrupted-row and drifted-row counts.
 /// </summary>
 /// <param name="Pending">The pending-changes summary.</param>
 /// <param name="ShowCorrupted">Whether the corrupted-row count is shown, i.e. validation is enabled.</param>
 /// <param name="Corrupted">The corrupted-row count text, as of the last completed scan.</param>
-internal sealed record StatusSummary(string Pending, bool ShowCorrupted, string Corrupted);
+/// <param name="Drifted">The drifted-row count text, as of the last completed drift check.</param>
+internal sealed record StatusSummary(string Pending, bool ShowCorrupted, string Corrupted, string Drifted);
 
 /// <summary>
 /// Computes what the status strip shows from the service state and the setting.
@@ -18,7 +19,7 @@ internal sealed record StatusSummary(string Pending, bool ShowCorrupted, string 
 internal static class StatusPresenter
 {
     /// <summary>
-    /// Summarises pending work and corrupted rows across both scopes.
+    /// Summarises pending work and the corrupted and drifted row counts across both scopes.
     /// </summary>
     /// <param name="service">The service whose two scopes are counted.</param>
     /// <param name="enableCorruptedValidation">Whether the corrupted-row count is shown.</param>
@@ -35,8 +36,9 @@ internal static class StatusPresenter
             : $"{added} added · {modified} modified · {deleted} deleted";
 
         var corrupted = $"{StateCounter.CountCorrupted(service.User) + StateCounter.CountCorrupted(service.Machine)} corrupted";
+        var drifted = $"{StateCounter.CountDrifted(service.User) + StateCounter.CountDrifted(service.Machine)} drifted";
 
-        return new StatusSummary(pending, enableCorruptedValidation, corrupted);
+        return new StatusSummary(pending, enableCorruptedValidation, corrupted, drifted);
     }
 
     /// <summary>

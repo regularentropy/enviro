@@ -24,4 +24,12 @@ internal static class StateCounter
     /// <returns>The number of rows marked as corrupted.</returns>
     public static int CountCorrupted(IEnvScope scope) =>
         scope.Rows.OfType<EnvModel>().Count(v => v.IsCorrupted);
+
+    /// <summary>
+    /// Counts the rows of one scope whose drift overlay is set.
+    /// </summary>
+    /// <param name="scope">The scope whose rows are counted.</param>
+    /// <returns>The number of rows marked as drifted.</returns>
+    public static int CountDrifted(IEnvScope scope) =>
+        scope.Rows.OfType<EnvModel>().Count(v => v.IsDrifted);
 }

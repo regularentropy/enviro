@@ -1,7 +1,7 @@
 namespace enviro.Services;
 
 /// <summary>
-/// Single funnel for failures the app survives and for unhandled exceptions.
+/// Single funnel for failures the app survives, for unhandled exceptions and for audit entries.
 /// </summary>
 internal interface IAppLog
 {
@@ -16,6 +16,13 @@ internal interface IAppLog
     /// <param name="message">What failed, in one sentence.</param>
     /// <param name="exception">The failure to attach, or null when there is nothing to attach.</param>
     void Error(string message, Exception? exception = null);
+
+    /// <summary>
+    /// Appends one audit entry: a noteworthy event that is not a failure, e.g. a variable that
+    /// changed outside enviro.
+    /// </summary>
+    /// <param name="message">What happened, in one sentence.</param>
+    void Info(string message);
 }
 
 /// <summary>
@@ -60,6 +67,9 @@ internal sealed class AppLog : IAppLog
             // Logging must never break the caller, least of all the crash path.
         }
     }
+
+    /// <inheritdoc />
+    public void Info(string message) => Error(message);
 
     /// <summary>
     /// Moves the live file to <c>enviro.log.old</c> once it reaches <see cref="MaxBytes"/>.

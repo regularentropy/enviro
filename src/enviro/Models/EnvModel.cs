@@ -90,6 +90,41 @@ internal class EnvModel : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    /// Indicates whether the live registry value differs from the row's baseline, i.e. the
+    /// variable changed outside of enviro. This is a diagnostic overlay and is independent of
+    /// <see cref="State"/>.
+    /// </summary>
+    public bool IsDrifted
+    {
+        get;
+        set
+        {
+            if (field != value)
+            {
+                field = value;
+                OnPropertyChanged(nameof(IsDrifted));
+            }
+        }
+    }
+
+    /// <summary>
+    /// The value the registry currently holds for this row while <see cref="IsDrifted"/> is set;
+    /// null otherwise.
+    /// </summary>
+    public string? LiveValue
+    {
+        get;
+        set
+        {
+            if (field != value)
+            {
+                field = value;
+                OnPropertyChanged(nameof(LiveValue));
+            }
+        }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged(string propertyName)

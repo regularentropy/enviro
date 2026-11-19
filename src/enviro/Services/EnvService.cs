@@ -123,6 +123,15 @@ internal interface IEnvScope
     void Add(EnvModel pm);
 
     /// <summary>
+    /// Merges externally created variables into the bound list: rows whose name (or original
+    /// name) no row of this scope holds are appended without an undo delta — they are system
+    /// facts, not user edits. Duplicates are skipped silently. One change notification for the
+    /// whole batch.
+    /// </summary>
+    /// <param name="rows">The rows the live system holds but the workspace does not.</param>
+    void AddExternal(IReadOnlyList<EnvModel> rows);
+
+    /// <summary>
     /// Updates the path value of an environmental variable and marks it as modified.
     /// </summary>
     /// <param name="model">The model to update.</param>
@@ -204,6 +213,14 @@ internal interface IEnvScope
     /// <param name="model">The row that was just written.</param>
     /// <param name="appliedState">The state the row had when it was written.</param>
     void MarkApplied(EnvModel model, EnvironmentalVariableState appliedState);
+
+    /// <summary>
+    /// Accepts one row's external change into the workspace, so the registry becomes the new
+    /// baseline: the live value is taken over like any other edit (one undo step), and the drift
+    /// overlay is cleared. A row whose variable was deleted externally becomes a pending deletion.
+    /// </summary>
+    /// <param name="pm">The drifted row to accept.</param>
+    void AcceptDrift(EnvModel pm);
 
     /// <summary>
     /// Re-orders the rows by one model property. The list is cleared and refilled, so callers that
@@ -488,6 +505,46 @@ internal sealed class EnvScope(EnvironmentalVariableType type, IUndoHistory hist
         rows.Add(pm);
         deltas.Add(new(pm, rows.Count - 1, null, null, RowFields.Of(pm)));
     });
+
+    /// <summary>
+    /// Merges externally created variables into the bound list: rows whose name (or original
+    /// name) no row of this scope holds are appended without an undo delta — they are system
+    /// facts the registry holds, not user edits, so there is nothing to undo. Duplicates are
+    /// skipped silently; the batch raises one change notification, like Replace/Import.
+    /// </summary>
+    /// <param name="newRows">The rows the live system holds but the workspace does not.</param>
+    public void AddExternal(IReadOnlyList<EnvModel> newRows)
+    {
+        var byName = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var row in rows)
+        {
+            byName.Add(row.Name);
+            byName.Add(row.OriginalName);
+        }
+
+        var added = false;
+        rows.RaiseListChangedEvents = false;
+
+        try
+        {
+            foreach (var row in newRows)
+            {
+                if (!byName.Add(row.Name))
+                    continue;
+
+                rows.Add(row);
+                added = true;
+            }
+        }
+        finally
+        {
+            rows.RaiseListChangedEvents = true;
+        }
+
+        if (added)
+            rows.ResetBindings();
+    }
 
     /// <summary>
     /// Updates the path value of an environmental variable and marks it as modified.
@@ -818,8 +875,44 @@ internal sealed class EnvScope(EnvironmentalVariableType type, IUndoHistory hist
         model.State = EnvironmentalVariableState.Unchanged;
         model.OriginalName = model.Name;
         model.OriginalPath = model.Path;
+        // The row now matches the system again, so any drift flag from before the write is stale.
+        model.IsDrifted = false;
+        model.LiveValue = null;
         _appliedDeleted.Remove(model);
         Record(deltas, model, before);
+    });
+
+    /// <summary>
+    /// Accepts one row's external change into the workspace through <see cref="Mutate"/>, so it is
+    /// one undo step like every other mutation. A live value becomes the row's new value and
+    /// baseline (a pending edit or rename of that row is dropped); a live deletion becomes a
+    /// pending deletion, because the row the workspace holds then matches nothing the system has.
+    /// A row that is not drifted is a no-op.
+    /// </summary>
+    /// <param name="pm">The drifted row to accept.</param>
+    public void AcceptDrift(EnvModel pm) => Mutate(deltas =>
+    {
+        if (!pm.IsDrifted)
+            return;
+
+        var before = RowFields.Of(pm);
+
+        if (pm.LiveValue is { } live)
+        {
+            pm.Path = live;
+            pm.OriginalPath = live;
+            pm.State = EnvironmentalVariableState.Unchanged;
+        }
+        else
+        {
+            pm.State = EnvironmentalVariableState.Deleted;
+        }
+
+        // The workspace now agrees with the registry again, so the overlay is stale.
+        pm.IsDrifted = false;
+        pm.LiveValue = null;
+
+        Record(deltas, pm, before);
     });
 
     /// <summary>

@@ -18,7 +18,7 @@ Enviro addresses this with a classic Windows interface, change tracking for ever
 - 🎯 **Native WinForms**: Built with Windows Forms for a smaller binary size & performance.
 - 📋 **Change Tracking**: See exactly what was modified, deleted, or created in your environment variables.
 - ✅ **Path Validation**: Detects variables pointing to invalid/non-existent paths.
-- 💾 **Import/Export**: Back up and restore your environment variables to a JSON file, choosing exactly which variables travel.
+- 💾 **Import/Export**: Back up and restore your environment variables to a JSON or .reg (registry) file, choosing exactly which variables travel.
 - 🌓 **Theme Support**: Follows the Windows light/dark mode, with a System/Light/Dark choice in Options that applies on the next start.
 - ⚡ **Instant Apply**: Changes take effect immediately without system restart.
 

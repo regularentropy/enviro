@@ -40,9 +40,9 @@ internal static class GridStyleHelper
 
     /// <summary>
     /// Applies colour, selection colour and font formatting to a DataGridView cell based on the
-    /// environmental variable's state and corrupted-path overlay.
+    /// environmental variable's state and the corrupted-path and drift overlays.
     /// Every colour comes from <see cref="ThemePalette"/>, so the same row reads in light and dark
-    /// mode; a deleted row is struck through and the corrupted overlay overrides the state background.
+    /// mode; a deleted row is struck through and an overlay overrides the state background.
     /// The selected row keeps a recognisable matching shade of the same colour, with text chosen for
     /// contrast against it.
     /// </summary>
@@ -50,7 +50,7 @@ internal static class GridStyleHelper
     /// <param name="model">The environmental variable model associated with the cell.</param>
     public static void ApplyStateFormatting(DataGridViewCellFormattingEventArgs e, EnvModel model)
     {
-        var colors = ThemePalette.Row(model.State, model.IsCorrupted);
+        var colors = ThemePalette.Row(model.State, model.IsCorrupted, model.IsDrifted);
 
         e.CellStyle.BackColor = colors.Background;
         e.CellStyle.SelectionBackColor = colors.SelectionBackground;
@@ -65,12 +65,15 @@ internal static class GridStyleHelper
     /// </summary>
     /// <param name="model">The environmental variable model for the row.</param>
     /// <returns>
-    /// <c>!</c> for a corrupted value, otherwise <c>+</c> added, <c>~</c> modified,
-    /// <c>–</c> deleted, or an empty string for an unchanged row.
+    /// <c>!</c> for a corrupted value, <c>≠</c> for a drifted row whose live value differs from
+    /// the baseline, otherwise <c>+</c> added, <c>~</c> modified, <c>–</c> deleted, or an empty
+    /// string for an unchanged row.
     /// </returns>
     public static string GetStateIndicator(EnvModel model) =>
         model.IsCorrupted
             ? "!"
+            : model.IsDrifted
+            ? "≠"
             : model.State switch
             {
                 EnvironmentalVariableState.Added => "+",

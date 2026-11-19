@@ -53,6 +53,7 @@ namespace enviro
             services.AddSingleton<IEnvAdapter, EnvAdapter>();
             services.AddSingleton<IConfigService, ConfigService>();
             services.AddSingleton<IVariableFileService, VariableFileService>();
+            services.AddSingleton<IRegFileService, RegFileService>();
 
             services.AddSingleton<MetadataRepository>();
 

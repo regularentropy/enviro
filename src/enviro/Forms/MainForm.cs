@@ -24,6 +24,7 @@ internal partial class MainForm : Form
     private readonly IAppLog _log;
     private readonly ApplyCoordinator _applyCoordinator;
     private readonly IVariableFileService _variableFiles;
+    private readonly IRegFileService _regFiles;
     private readonly IUndoHistory _undoHistory;
 
     // Builds the About dialog on demand, so the shell holds no container.
@@ -42,7 +43,7 @@ internal partial class MainForm : Form
     // Each command's projected controls, refreshed together so their enablement cannot drift.
     private readonly List<(MainCommand Command, ToolStripItem[] Targets)> _commandTargets = [];
 
-    public MainForm(IEnvService es, IActionFactory<EnvModel> af, IUpdateService us, ITabFactory tf, IEnvGridFactory gf, Func<AboutForm> aboutForm, IConfigService cs, IAppLog log, ICorruptedPathService corruption, ApplyCoordinator applyCoordinator, IVariableFileService variableFiles, IUndoHistory undoHistory)
+    public MainForm(IEnvService es, IActionFactory<EnvModel> af, IUpdateService us, ITabFactory tf, IEnvGridFactory gf, Func<AboutForm> aboutForm, IConfigService cs, IAppLog log, ICorruptedPathService corruption, ApplyCoordinator applyCoordinator, IVariableFileService variableFiles, IUndoHistory undoHistory, IRegFileService regFiles)
     {
         InitializeComponent();
 
@@ -61,6 +62,7 @@ internal partial class MainForm : Form
         _log = log;
         _applyCoordinator = applyCoordinator;
         _variableFiles = variableFiles;
+        _regFiles = regFiles;
         _undoHistory = undoHistory;
 
         ApplyElevationWindowGeometry();
@@ -553,22 +555,37 @@ internal partial class MainForm : Form
     }
 
     /// <summary>
-    /// Writes the variables the user keeps to a JSON file they choose: the file matches the grid,
-    /// and a row whose deletion is still pending is not backed up.
+    /// Writes the variables the user keeps to a file they choose — JSON or .reg, picked by the
+    /// dialog's filter: the file matches the grid, and a row whose deletion is still pending is
+    /// not backed up.
     /// </summary>
     private void ExportVariables()
     {
         var dialog = new CommonSaveFileDialog
         {
-            DefaultFileName = $"enviro-variables-{DateTime.Now:yyyyMMdd}.json",
-            DefaultExtension = "json",
+            // No default extension: with none set, the dialog appends the selected filter's own
+            // extension, so the name the user picks carries the format they chose.
+            DefaultFileName = $"enviro-variables-{DateTime.Now:yyyyMMdd}",
         };
         dialog.Filters.Add(new CommonFileDialogFilter("JSON files", "*.json"));
+        dialog.Filters.Add(new CommonFileDialogFilter("Registration files", "*.reg"));
 
         if (dialog.ShowDialog() != CommonFileDialogResult.Ok)
             return;
 
-        var entries = _variableFiles.Entries(_variableFiles.Snapshot(_envService));
+        // The selected filter decides the format (the file may not exist yet, so its extension
+        // alone cannot be trusted); the name is forced to carry that format's extension.
+        var reg = dialog.SelectedFileTypeIndex == 2;
+        IVariableFileService files = reg ? _regFiles : _variableFiles;
+        var path = dialog.FileName;
+
+        if (reg && !path.EndsWith(".reg", StringComparison.OrdinalIgnoreCase))
+            path += ".reg";
+
+        if (!reg && Path.GetExtension(path).Length == 0)
+            path += ".json";
+
+        var entries = files.Entries(files.Snapshot(_envService));
 
         if (entries.Count == 0)
         {
@@ -581,7 +598,7 @@ internal partial class MainForm : Form
         if (review.ShowDialog(this) != DialogResult.OK)
             return;
 
-        if (_variableFiles.Save(dialog.FileName, BuildFile(review.SelectedEntries)) is { } error)
+        if (files.Save(path, BuildFile(review.SelectedEntries)) is { } error)
         {
             DialogHelper.ShowError(error, "Export variables");
             return;
@@ -589,7 +606,7 @@ internal partial class MainForm : Form
 
         ShowTransientStatus(
             $"Exported {review.SelectedEntries.Count} " +
-            $"{(review.SelectedEntries.Count == 1 ? "variable" : "variables")} to {Path.GetFileName(dialog.FileName)}");
+            $"{(review.SelectedEntries.Count == 1 ? "variable" : "variables")} to {Path.GetFileName(path)}");
     }
 
     /// <summary>
@@ -601,11 +618,17 @@ internal partial class MainForm : Form
     {
         var dialog = new CommonOpenFileDialog { Multiselect = false };
         dialog.Filters.Add(new CommonFileDialogFilter("JSON files", "*.json"));
+        dialog.Filters.Add(new CommonFileDialogFilter("Registration files", "*.reg"));
 
         if (dialog.ShowDialog() != CommonFileDialogResult.Ok)
             return;
 
-        var (file, error) = _variableFiles.Read(dialog.FileName);
+        // The file's extension decides the reader, so a .reg picked under the JSON filter still parses as .reg.
+        IVariableFileService files = Path.GetExtension(dialog.FileName).Equals(".reg", StringComparison.OrdinalIgnoreCase)
+            ? _regFiles
+            : _variableFiles;
+
+        var (file, error) = files.Read(dialog.FileName);
 
         if (file is null)
         {
@@ -615,7 +638,7 @@ internal partial class MainForm : Form
 
         // The same gate Apply uses: a machine section is only selectable in an elevated session.
         var canImportMachine = AdminChecker.CanMutate(EnvironmentalVariableType.Machine);
-        var entries = _variableFiles.Compare(file, _envService, canImportMachine);
+        var entries = files.Compare(file, _envService, canImportMachine);
 
         if (entries.Count == 0)
         {

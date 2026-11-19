@@ -16,6 +16,18 @@ internal static class ControlHelper
         grid.CurrentRow?.DataBoundItem as EnvModel;
 
     /// <summary>
+    /// Gets the models of all selected rows, ordered by row index so bulk actions are
+    /// deterministic regardless of the order the user clicked the rows.
+    /// </summary>
+    /// <param name="grid">The DataGridView whose selection to read.</param>
+    /// <returns>The selected models, in row order; empty when nothing is selected.</returns>
+    public static IReadOnlyList<EnvModel> GetSelectedModels(DataGridView grid) =>
+        [.. grid.SelectedRows.Cast<DataGridViewRow>()
+            .OrderBy(row => row.Index)
+            .Select(row => row.DataBoundItem as EnvModel)
+            .OfType<EnvModel>()];
+
+    /// <summary>
     /// Determines the environmental variable type carried by the nearest ancestor control's
     /// <see cref="Control.Tag"/>; <c>TabFactory</c> tags each tab page with its scope.
     /// </summary>

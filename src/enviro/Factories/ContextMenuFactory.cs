@@ -33,6 +33,7 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
     private readonly IEnvService _env;
     private readonly IActionFactory<EnvModel> _entryFormFactory;
     private readonly IDriftService _drift;
+    private readonly IUndoHistory _undo;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ContextMenuFactory"/> class.
@@ -40,11 +41,13 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
     /// <param name="envService">The service for managing environmental variables.</param>
     /// <param name="factory">The factory for creating action forms.</param>
     /// <param name="drift">The service that reverts drifted rows to the baseline.</param>
-    public ContextMenuFactory(IEnvService envService, IActionFactory<EnvModel> factory, IDriftService drift)
+    /// <param name="undoHistory">The history a bulk delete is batched on.</param>
+    public ContextMenuFactory(IEnvService envService, IActionFactory<EnvModel> factory, IDriftService drift, IUndoHistory undoHistory)
     {
         _env = envService;
         _entryFormFactory = factory;
         _drift = drift;
+        _undo = undoHistory;
     }
 
     /// <summary>
@@ -61,11 +64,16 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
         // that would only be rejected on click.
         bool canMutate = AdminChecker.CanMutate(grid);
 
+        // A right-click inside a multi-selection keeps it, so the menu can tell: single-row
+        // actions (Edit, Restore, Reset) hide when several rows are selected, bulk ones
+        // (Delete, Copy) stay and act on all of them.
+        var selectedCount = grid.SelectedRows.Count;
+
         // Restore/Reset are ungated in-memory operations, but they still belong to the grid's scope;
         // a control without one denies them like every other mutation.
         var scope = ControlHelper.GetTabType(grid) is { } type ? _env.GetScope(type) : null;
 
-        if (scope is not null)
+        if (scope is not null && selectedCount <= 1)
         {
             if (pm.State == EnvironmentalVariableState.Deleted)
                 cms.Items.Add("Restore", null, (_, _) => scope.Restore(pm));
@@ -75,20 +83,30 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
 
         if (canMutate)
         {
-            cms.Items.Add("Edit", null, (_, _) => RowActionHelper.Edit(grid, _entryFormFactory));
-            cms.Items.Add("Delete", null, (_, _) => RowActionHelper.Delete(grid, _env));
+            if (selectedCount <= 1)
+                cms.Items.Add("Edit", null, (_, _) => RowActionHelper.Edit(grid, _entryFormFactory));
+
+            cms.Items.Add(
+                selectedCount > 1 ? $"Delete {selectedCount} variables" : "Delete",
+                null,
+                (_, _) => RowActionHelper.Delete(grid, _env, _undo));
             cms.Items.Add(new ToolStripSeparator());
         }
 
-        cms.Items.Add("Copy name", null, (_, _) => CopyToClipboard(grid, m => m.Name));
-        cms.Items.Add("Copy value", null, (_, _) => CopyToClipboard(grid, m => m.Path));
+        // Copy items: name and value copy one property per line; "Copy variables" copies the
+        // whole selection as NAME=value lines, the same text Ctrl+C puts on the clipboard for
+        // a multi-selection.
+        cms.Items.Add("Copy name", null, (_, _) => CopyToClipboard(grid, ClipboardHelper.FormatNameLines));
+        cms.Items.Add("Copy value", null, (_, _) => CopyToClipboard(grid, ClipboardHelper.FormatValueLines));
+        cms.Items.Add("Copy variables (name=value)", null, (_, _) => CopyToClipboard(grid, ClipboardHelper.FormatNameValueLines));
 
-        // Only a modified row has an original value that differs from the current one.
-        if (pm.State == EnvironmentalVariableState.Modified)
-            cms.Items.Add("Copy original path", null, (_, _) => CopyToClipboard(grid, m => m.OriginalPath));
+        // The remaining items act on the current row only, so like Edit/Restore/Reset they
+        // hide in a multi-selection; the bulk equivalents live in the View menu.
+        if (selectedCount <= 1 && pm.State == EnvironmentalVariableState.Modified)
+            cms.Items.Add("Copy original path", null, (_, _) => ClipboardHelper.CopyText(pm.OriginalPath));
 
         // Only a drifted row carries the live value the registry holds instead of the baseline.
-        if (pm.IsDrifted)
+        if (selectedCount <= 1 && pm.IsDrifted)
         {
             // Accepting the live value is an in-memory edit like Reset, so it is ungated.
             cms.Items.Add("Use live value", null, (_, _) => scope?.AcceptDrift(pm));
@@ -101,7 +119,7 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
                         DialogHelper.ShowError($"Could not write the original value of \"{pm.Name}\" back to the registry.", "Revert");
                 });
 
-            cms.Items.Add("Copy live value", null, (_, _) => CopyToClipboard(grid, m => m.LiveValue!));
+            cms.Items.Add("Copy live value", null, (_, _) => ClipboardHelper.CopyText(pm.LiveValue!));
         }
 
         return cms;
@@ -124,13 +142,15 @@ internal sealed class ContextMenuFactory : IContextMenuFactory
     }
 
     /// <summary>
-    /// Copies a property of the current model to the clipboard.
+    /// Copies the formatted selection to the clipboard.
     /// </summary>
-    /// <param name="g">The DataGridView containing the model.</param>
-    /// <param name="selector">A function to select the property to copy.</param>
-    private void CopyToClipboard(DataGridView g, Func<EnvModel, string> selector)
+    /// <param name="g">The DataGridView whose selection to copy.</param>
+    /// <param name="format">Formats the selected rows (see <see cref="ClipboardHelper"/>).</param>
+    private void CopyToClipboard(DataGridView g, Func<IReadOnlyList<EnvModel>, string> format)
     {
-        var model = ControlHelper.GetCurrentModel(g);
-        ClipboardHelper.CopyModelProperty(model, selector);
+        var models = ControlHelper.GetSelectedModels(g);
+
+        if (models.Count > 0)
+            ClipboardHelper.CopyText(format(models));
     }
 }

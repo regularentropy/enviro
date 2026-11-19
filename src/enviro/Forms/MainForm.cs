@@ -100,6 +100,7 @@ internal partial class MainForm : Form
         // Legend for the grid's state-indicator column, available without using colour vision.
         statusStrip1.ShowItemToolTips = true;
         pendingStatusLabel.ToolTipText = "Row markers: + added · ~ modified · – deleted · ! corrupted · ≠ drifted. Click the pending count to apply.";
+        driftStatusLabel.ToolTipText = "Click to show drifted rows only.";
 
         // Elevation cannot change while the process runs, so the label is written once here.
         elevationStatusLabel.Text = AdminChecker.IsAdmin() ? "Administrator" : "Standard user";
@@ -133,6 +134,7 @@ internal partial class MainForm : Form
 
         _commands = CreateCommandSurfaces();
         UpdateActionState();
+        RestorePersistedView();
 
         // The status strip is clickable where it names an action: the pending count applies,
         // the drifted count toggles the drifted-only view.
@@ -363,18 +365,106 @@ internal partial class MainForm : Form
     /// </remarks>
     private void ApplyElevationWindowGeometry()
     {
-        if (!WindowGeometry.TryParse(Environment.GetCommandLineArgs(), out var bounds, out var maximized)
-            || !WindowGeometry.IsOnScreen(bounds, Screen.AllScreens.Select(screen => screen.WorkingArea)))
+        var workingAreas = Screen.AllScreens.Select(screen => screen.WorkingArea);
+
+        if (WindowGeometry.TryParse(Environment.GetCommandLineArgs(), out var bounds, out var maximized)
+            && WindowGeometry.IsOnScreen(bounds, workingAreas))
         {
-            CenterToScreen();
+            StartPosition = FormStartPosition.Manual;
+            Bounds = bounds;
+
+            if (maximized)
+                WindowState = FormWindowState.Maximized;
+
             return;
         }
 
-        StartPosition = FormStartPosition.Manual;
-        Bounds = bounds;
+        // No restart argument: fall back to the bounds persisted on the last close when they
+        // still fit entirely inside one screen, so a moved or resized window survives a restart.
+        var saved = _configService.Config.WindowBounds;
 
-        if (maximized)
-            WindowState = FormWindowState.Maximized;
+        if (saved is not null
+            && WindowGeometry.IsOnScreen(new Rectangle(saved.X, saved.Y, saved.Width, saved.Height), workingAreas))
+        {
+            StartPosition = FormStartPosition.Manual;
+            Bounds = new Rectangle(saved.X, saved.Y, saved.Width, saved.Height);
+
+            if (_configService.Config.WindowMaximized)
+                WindowState = FormWindowState.Maximized;
+
+            return;
+        }
+
+        CenterToScreen();
+    }
+
+    /// <summary>
+    /// Applies the persisted per-scope view state once the tabs exist: the active tab, each
+    /// grid's filter text and each grid's sort.
+    /// </summary>
+    private void RestorePersistedView()
+    {
+        AllTab.SelectedIndex = Math.Clamp(_configService.Config.ActiveTab, 0, AllTab.TabPages.Count - 1);
+
+        foreach (var tab in AllTab.TabPages.Cast<TabPage>())
+        {
+            if (ControlHelper.GetTabType(tab) is not { } type
+                || tab.Controls.OfType<DataGridView>().FirstOrDefault() is not { } grid)
+                continue;
+
+            if (_gridFactory.FilterOf(grid) is { } filter)
+                filter.Text = type == EnvironmentalVariableType.User
+                    ? _configService.Config.UserFilter
+                    : _configService.Config.MachineFilter;
+
+            var sort = type == EnvironmentalVariableType.User
+                ? _configService.Config.UserSort
+                : _configService.Config.MachineSort;
+
+            if (sort is not null)
+                _gridFactory.RestoreSort(grid, sort.Property, sort.Descending);
+        }
+
+        UpdateActionState();
+    }
+
+    /// <summary>
+    /// Writes the window bounds, active tab, filter texts and sorts into the config; the exit
+    /// hook saves the dirty config when the application ends.
+    /// </summary>
+    private void PersistViewState()
+    {
+        var bounds = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
+
+        _configService.Config.WindowBounds = new WindowBounds(bounds.X, bounds.Y, bounds.Width, bounds.Height);
+        _configService.Config.WindowMaximized = WindowState == FormWindowState.Maximized;
+        _configService.Config.ActiveTab = AllTab.SelectedIndex;
+
+        foreach (var tab in AllTab.TabPages.Cast<TabPage>())
+        {
+            if (ControlHelper.GetTabType(tab) is not { } type
+                || tab.Controls.OfType<DataGridView>().FirstOrDefault() is not { } grid)
+                continue;
+
+            var filter = _gridFactory.FilterOf(grid)?.Text.Trim() ?? string.Empty;
+
+            if (type == EnvironmentalVariableType.User)
+                _configService.Config.UserFilter = filter;
+            else
+                _configService.Config.MachineFilter = filter;
+
+            var sorted = grid.Columns.Cast<DataGridViewColumn>()
+                .FirstOrDefault(c => c.HeaderCell.SortGlyphDirection != SortOrder.None);
+
+            var sort = sorted is { DataPropertyName: { Length: > 0 } property }
+                ? new SortPreference(property, sorted.HeaderCell.SortGlyphDirection == SortOrder.Descending)
+                : null;
+
+            if (type == EnvironmentalVariableType.User)
+                _configService.Config.UserSort = sort;
+            else
+                _configService.Config.MachineSort = sort;
+        }
     }
 
     /// <summary>
@@ -477,20 +567,53 @@ internal partial class MainForm : Form
     private bool HasSelection() => GetActiveGrid() is { } grid && ControlHelper.GetCurrentModel(grid) is not null;
 
     /// <summary>
-    /// Copies one property of the active grid's current row to the clipboard and says so in the
-    /// status strip.
+    /// Whether exactly one row is selected; single-row actions like Edit need this.
     /// </summary>
-    /// <param name="selector">Which model property to copy.</param>
-    /// <param name="what">The property's name for the status message.</param>
-    private void CopyFromGrid(Func<EnvModel, string> selector, string what)
-    {
-        var model = GetActiveGrid() is { } grid ? ControlHelper.GetCurrentModel(grid) : null;
+    private bool SingleSelection() =>
+        GetActiveGrid() is { } grid && ControlHelper.GetSelectedModels(grid).Count == 1;
 
-        if (model is null)
+    /// <summary>
+    /// Selects every visible row of the active grid. Rows hidden by the filter stay unselected,
+    /// so a bulk action (Delete, Copy) never touches rows the user cannot see.
+    /// </summary>
+    private void SelectAllRows()
+    {
+        if (GetActiveGrid() is not { } grid)
             return;
 
-        ClipboardHelper.CopyModelProperty(model, selector);
-        ShowTransientStatus($"Copied {what} of \"{model.Name}\".");
+        foreach (DataGridViewRow row in grid.Rows)
+            row.Selected = row.Visible;
+
+        if (grid.CurrentCell is null)
+        {
+            var firstVisible = grid.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Visible);
+
+            if (firstVisible is not null)
+                grid.CurrentCell = firstVisible.Cells[0];
+        }
+    }
+
+    /// <summary>
+    /// Copies the grid's selection to the clipboard and says so in the status strip. The format
+    /// comes from <see cref="ClipboardHelper"/>, so the context menu copies the same text.
+    /// </summary>
+    /// <param name="format">Formats the selected rows.</param>
+    /// <param name="what">The property's name for the status message.</param>
+    private void CopySelection(Func<IReadOnlyList<EnvModel>, string> format, string what)
+    {
+        if (GetActiveGrid() is not { } grid)
+            return;
+
+        var models = ControlHelper.GetSelectedModels(grid);
+
+        if (models.Count == 0)
+            return;
+
+        ClipboardHelper.CopyText(format(models));
+
+        ShowTransientStatus(models.Count == 1
+            ? $"Copied {what} of \"{models[0].Name}\"."
+            : $"Copied {models.Count} variables.");
     }
 
     /// <summary>
@@ -535,17 +658,28 @@ internal partial class MainForm : Form
             () => RestartAsAdmin(this, EventArgs.Empty),
             () => !AdminChecker.CanMutate(EnvironmentalVariableType.Machine));
         var add = new MainCommand("Add", [Keys.Control | Keys.N], () => CreateEntryClicked(this, EventArgs.Empty), CanMutate);
-        var edit = new MainCommand("Edit", [Keys.F2, Keys.Control | Keys.E], () => EditEntryClicked(this, EventArgs.Empty), () => CanMutate() && HasSelection() && !FocusIsTextBox());
+        // Edit acts on exactly one row, so it is unavailable in a multi-selection; Delete and
+        // Copy stay available and act on all selected rows.
+        var edit = new MainCommand("Edit", [Keys.F2, Keys.Control | Keys.E], () => EditEntryClicked(this, EventArgs.Empty), () => CanMutate() && SingleSelection() && !FocusIsTextBox());
         var delete = new MainCommand("Delete", [Keys.Delete], () => DeleteEntryClicked(this, EventArgs.Empty), () => CanMutate() && HasSelection() && !FocusIsTextBox());
         // Copy rides the same focus guard as Delete: in the filter box Ctrl+C keeps its native
         // text-copy meaning because the projected menu item is disabled there.
-        var copyValue = new MainCommand("Copy value", [Keys.Control | Keys.C], () => CopyFromGrid(m => m.Path, "value"), () => HasSelection() && !FocusIsTextBox());
-        var copyName = new MainCommand("Copy name", [Keys.Control | Keys.Shift | Keys.C], () => CopyFromGrid(m => m.Name, "name"), () => HasSelection() && !FocusIsTextBox());
+        var copyValue = new MainCommand("Copy value", [Keys.Control | Keys.C],
+            () => CopySelection(ClipboardHelper.FormatValueSelection, "value"),
+            () => HasSelection() && !FocusIsTextBox());
+        var copyName = new MainCommand("Copy name", [Keys.Control | Keys.Shift | Keys.C],
+            () => CopySelection(ClipboardHelper.FormatNameSelection, "name"),
+            () => HasSelection() && !FocusIsTextBox());
         var refresh = new MainCommand("Refresh", [Keys.F5], () => RefreshEntryClicked(this, EventArgs.Empty), () => true);
         var apply = new MainCommand("Apply", [Keys.Control | Keys.S], () => Apply(this, EventArgs.Empty), () => _envService.HasChanges());
         var undo = new MainCommand("Undo", [Keys.Control | Keys.Z], () => _envService.Undo(), () => _envService.CanUndo && !FocusIsTextBox());
         var redo = new MainCommand("Redo", [Keys.Control | Keys.Y], () => _envService.Redo(), () => _envService.CanRedo && !FocusIsTextBox());
+        // Ctrl+A selects every visible row; in the filter box it keeps its native select-all-text
+        // meaning via the same focus guard as the other commands.
+        var selectAll = new MainCommand("Select all", [Keys.Control | Keys.A], SelectAllRows, () => GetActiveGrid() is { } g && g.Rows.Count > 0 && !FocusIsTextBox());
         var focusFilter = new MainCommand("Focus filter", [Keys.Control | Keys.F], FocusFilter, () => ActiveFilter() is not null);
+        var acceptAllDrift = new MainCommand("Accept all live values", [], AcceptAllDrift, () => DriftedCount() > 0);
+        var revertAllDrift = new MainCommand("Revert all drifted", [], RevertAllDrift, () => DriftedCount() > 0);
 
         // Menu-only commands: no toolbar button and no shortcut key, so the command surface stays
         // six buttons wide and the shortcut router is untouched.
@@ -570,6 +704,8 @@ internal partial class MainForm : Form
         // keeps its five buttons and the shortcuts ride the command table alone.
         Project(undo, null, variablesMenu);
         Project(redo, null, variablesMenu);
+        variablesMenu.DropDownItems.Add(new ToolStripSeparator());
+        Project(selectAll, null, variablesMenu);
 
         var viewMenu = new ToolStripMenuItem("View");
         menuStrip1.Items.Insert(2, viewMenu);
@@ -579,8 +715,11 @@ internal partial class MainForm : Form
         viewMenu.DropDownItems.Add(CreateCorruptedValidationMenu());
         _driftOnlyItem = CreateDriftOnlyMenu();
         viewMenu.DropDownItems.Add(_driftOnlyItem);
+        viewMenu.DropDownItems.Add(new ToolStripSeparator());
+        Project(acceptAllDrift, null, viewMenu);
+        Project(revertAllDrift, null, viewMenu);
 
-        return new MainCommandTable([exportVariables, importVariables, restartAsAdmin, add, edit, delete, copyValue, copyName, refresh, apply, focusFilter, undo, redo]);
+        return new MainCommandTable([exportVariables, importVariables, restartAsAdmin, add, edit, delete, copyValue, copyName, refresh, apply, focusFilter, acceptAllDrift, revertAllDrift, undo, redo, selectAll]);
     }
 
     /// <summary>
@@ -842,7 +981,7 @@ internal partial class MainForm : Form
     private void DeleteEntryClicked(object? sender, EventArgs e)
     {
         if (GetActiveGrid() is { } grid)
-            RowActionHelper.Delete(grid, _envService);
+            RowActionHelper.Delete(grid, _envService, _undoHistory);
     }
 
     /// <summary>
@@ -880,6 +1019,72 @@ internal partial class MainForm : Form
     }
 
     private void OnConfigSaveFailed(object? sender, string message) => ShowTransientStatus(message);
+
+    /// <summary>
+    /// The number of drifted rows across both scopes; drives the bulk drift commands.
+    /// </summary>
+    private int DriftedCount() =>
+        StateCounter.CountDrifted(_envService.User) + StateCounter.CountDrifted(_envService.Machine);
+
+    /// <summary>
+    /// Takes the live registry value of every drifted row into the workspace as its new
+    /// baseline, in one undo step.
+    /// </summary>
+    private void AcceptAllDrift()
+    {
+        using var batch = _undoHistory.BeginBatch();
+        var count = 0;
+
+        foreach (var scope in new[] { _envService.User, _envService.Machine })
+        {
+            foreach (var row in scope.Rows.OfType<EnvModel>().Where(m => m.IsDrifted).ToList())
+            {
+                scope.AcceptDrift(row);
+                count++;
+            }
+        }
+
+        UpdateActionState();
+        UpdateStatusStrip();
+        ShowTransientStatus(count == 1
+            ? "Accepted the live value of 1 variable."
+            : $"Accepted the live values of {count} variables.");
+    }
+
+    /// <summary>
+    /// Writes every drifted row's baseline back to the registry. Rows in a scope this session
+    /// must not mutate are refused individually and reported in the summary.
+    /// </summary>
+    private void RevertAllDrift()
+    {
+        var reverted = 0;
+        var failed = 0;
+
+        foreach (var scope in new[] { _envService.User, _envService.Machine })
+        {
+            foreach (var row in scope.Rows.OfType<EnvModel>().Where(m => m.IsDrifted).ToList())
+            {
+                if (_drift.Revert(row))
+                    reverted++;
+                else
+                    failed++;
+            }
+        }
+
+        // The registry changed under the rows, so the drift overlay needs a fresh look.
+        _drift.CheckAll();
+        UpdateActionState();
+        UpdateStatusStrip();
+
+        if (failed > 0)
+            DialogHelper.ShowWarning(
+                $"Reverted {reverted}; {failed} could not be written (the Machine scope needs administrator).",
+                "Revert all drifted");
+        else
+            ShowTransientStatus(reverted == 1
+                ? "Reverted 1 drifted variable."
+                : $"Reverted {reverted} drifted variables.");
+    }
 
     /// <summary>
     /// Refreshes the command enablement when the undo/redo stacks change.
@@ -921,6 +1126,8 @@ internal partial class MainForm : Form
     /// </summary>
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
+        PersistViewState();
+
         // The exit hook still saves after the window is gone; it must not touch a dead form.
         _configService.SaveFailed -= OnConfigSaveFailed;
         _undoHistory.StackChanged -= OnUndoStackChanged;

@@ -31,6 +31,7 @@ namespace enviro.Forms
             tableLayoutPanel1 = new TableLayoutPanel();
             introLabel = new Label();
             hintLabel = new Label();
+            filterTextBox = new TextBox();
             entriesGrid = new DataGridView();
             selectedColumn = new DataGridViewCheckBoxColumn();
             scopeColumn = new DataGridViewTextBoxColumn();
@@ -55,13 +56,15 @@ namespace enviro.Forms
             tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             tableLayoutPanel1.Controls.Add(introLabel, 0, 0);
             tableLayoutPanel1.Controls.Add(hintLabel, 0, 1);
-            tableLayoutPanel1.Controls.Add(entriesGrid, 0, 2);
-            tableLayoutPanel1.Controls.Add(tableLayoutPanel2, 0, 3);
+            tableLayoutPanel1.Controls.Add(filterTextBox, 0, 2);
+            tableLayoutPanel1.Controls.Add(entriesGrid, 0, 3);
+            tableLayoutPanel1.Controls.Add(tableLayoutPanel2, 0, 4);
             tableLayoutPanel1.Dock = DockStyle.Fill;
             tableLayoutPanel1.Location = new Point(0, 0);
             tableLayoutPanel1.Name = "tableLayoutPanel1";
             tableLayoutPanel1.Padding = new Padding(16, 14, 16, 12);
-            tableLayoutPanel1.RowCount = 4;
+            tableLayoutPanel1.RowCount = 5;
+            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
@@ -92,6 +95,16 @@ namespace enviro.Forms
             hintLabel.Size = new Size(748, 15);
             hintLabel.TabIndex = 1;
             // 
+            // filterTextBox
+            // 
+            filterTextBox.Dock = DockStyle.Fill;
+            filterTextBox.Location = new Point(16, 60);
+            filterTextBox.Margin = new Padding(0, 0, 0, 8);
+            filterTextBox.Name = "filterTextBox";
+            filterTextBox.PlaceholderText = "Filter by name or value, Esc clears";
+            filterTextBox.Size = new Size(748, 23);
+            filterTextBox.TabIndex = 2;
+            // 
             // entriesGrid
             // 
             entriesGrid.AllowUserToAddRows = false;
@@ -103,13 +116,13 @@ namespace enviro.Forms
             entriesGrid.Dock = DockStyle.Fill;
             entriesGrid.Location = new Point(16, 63);
             entriesGrid.Margin = new Padding(0);
-            entriesGrid.MultiSelect = false;
+            entriesGrid.MultiSelect = true;
             entriesGrid.Name = "entriesGrid";
             entriesGrid.RowHeadersVisible = false;
             entriesGrid.RowTemplate.Height = 23;
             entriesGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             entriesGrid.Size = new Size(748, 395);
-            entriesGrid.TabIndex = 2;
+            entriesGrid.TabIndex = 3;
             // 
             // selectedColumn
             // 
@@ -188,7 +201,7 @@ namespace enviro.Forms
             tableLayoutPanel2.RowCount = 1;
             tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             tableLayoutPanel2.Size = new Size(748, 30);
-            tableLayoutPanel2.TabIndex = 3;
+            tableLayoutPanel2.TabIndex = 4;
             // 
             // selectionLabel
             // 
@@ -287,6 +300,7 @@ namespace enviro.Forms
         private TableLayoutPanel tableLayoutPanel1;
         private Label introLabel;
         private Label hintLabel;
+        private TextBox filterTextBox;
         private DataGridView entriesGrid;
         private DataGridViewCheckBoxColumn selectedColumn;
         private DataGridViewTextBoxColumn scopeColumn;

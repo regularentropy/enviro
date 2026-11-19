@@ -96,4 +96,41 @@ public class ConfigServiceTests : IDisposable
             File.Delete(legacy);
         }
     }
+
+    [Fact]
+    public void Window_and_view_state_round_trips_through_the_file()
+    {
+        var service = NewService();
+        service.Config.WindowBounds = new WindowBounds(10, 20, 800, 600);
+        service.Config.WindowMaximized = true;
+        service.Config.ActiveTab = 1;
+        service.Config.UserFilter = "path";
+        service.Config.MachineFilter = "java";
+        service.Config.UserSort = new SortPreference("Path", Descending: true);
+
+        service.Save();
+
+        var reloaded = NewService();
+        Assert.Equal(new WindowBounds(10, 20, 800, 600), reloaded.Config.WindowBounds);
+        Assert.True(reloaded.Config.WindowMaximized);
+        Assert.Equal(1, reloaded.Config.ActiveTab);
+        Assert.Equal("path", reloaded.Config.UserFilter);
+        Assert.Equal("java", reloaded.Config.MachineFilter);
+        Assert.Equal(new SortPreference("Path", true), reloaded.Config.UserSort);
+        Assert.Null(reloaded.Config.MachineSort);
+    }
+
+    [Fact]
+    public void An_older_config_without_view_state_loads_with_sensible_defaults()
+    {
+        File.WriteAllText(_configPath, """{"EnableCorruptedValidation": false, "Theme": "Light"}""");
+
+        var service = NewService();
+
+        Assert.Null(service.Config.WindowBounds);
+        Assert.False(service.Config.WindowMaximized);
+        Assert.Equal(0, service.Config.ActiveTab);
+        Assert.Equal(string.Empty, service.Config.UserFilter);
+        Assert.Null(service.Config.UserSort);
+    }
 }

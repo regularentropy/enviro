@@ -53,6 +53,15 @@ internal interface IEnvGridFactory
     /// <param name="grid">The grid whose flag should be returned.</param>
     /// <returns>True when the grid shows drifted rows only.</returns>
     bool DriftOnlyOf(DataGridView grid);
+
+    /// <summary>
+    /// Applies a persisted sort to a grid without toggling: sorts the scope's rows by the given
+    /// property, sets that column's sort glyph and re-applies the filter.
+    /// </summary>
+    /// <param name="grid">The grid whose sort should be restored.</param>
+    /// <param name="propertyName">The bound model property to sort by.</param>
+    /// <param name="descending">Whether the sort is descending.</param>
+    void RestoreSort(DataGridView grid, string propertyName, bool descending);
 }
 
 /// <summary>
@@ -106,7 +115,7 @@ internal sealed class EnvGridFactory : IEnvGridFactory
             RowHeadersVisible = false,
             ReadOnly = true,
             SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-            MultiSelect = false,
+            MultiSelect = true,
             ScrollBars = ScrollBars.Vertical,
             BorderStyle = BorderStyle.None,
             ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize,
@@ -250,7 +259,10 @@ internal sealed class EnvGridFactory : IEnvGridFactory
                     return;
                 }
 
-                grid.CurrentCell = grid[hit.ColumnIndex, hit.RowIndex];
+                // A right-click inside the current multi-selection keeps it, so the menu acts
+                // on every selected row; outside it collapses to the clicked row.
+                if (!grid.SelectedRows.Cast<DataGridViewRow>().Any(r => r.Index == hit.RowIndex))
+                    grid.CurrentCell = grid[hit.ColumnIndex, hit.RowIndex];
 
                 var model = (EnvModel)grid.CurrentRow.DataBoundItem;
 
@@ -316,6 +328,27 @@ internal sealed class EnvGridFactory : IEnvGridFactory
 
     /// <inheritdoc/>
     public bool DriftOnlyOf(DataGridView grid) => _driftOnly.GetValueOrDefault(grid);
+
+    /// <inheritdoc/>
+    public void RestoreSort(DataGridView grid, string propertyName, bool descending)
+    {
+        var column = grid.Columns.Cast<DataGridViewColumn>()
+            .FirstOrDefault(c => c.DataPropertyName == propertyName);
+
+        if (column is null || ControlHelper.GetTabType(grid) is not { } type)
+            return;
+
+        env.GetScope(type).Sort(
+            propertyName,
+            descending ? ListSortDirection.Descending : ListSortDirection.Ascending);
+
+        foreach (DataGridViewColumn col in grid.Columns)
+            col.HeaderCell.SortGlyphDirection = SortOrder.None;
+
+        column.HeaderCell.SortGlyphDirection = descending ? SortOrder.Descending : SortOrder.Ascending;
+
+        ApplyFilter(grid);
+    }
 
     /// <summary>
     /// Hides the rows the filter text and the drift-only flag exclude. The bound list itself is

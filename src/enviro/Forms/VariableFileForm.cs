@@ -34,6 +34,11 @@ internal sealed partial class VariableFileForm : Form
     // Set while a bulk action rewrites many checkboxes, so the footer is refreshed once.
     private bool _updatingSelection;
 
+    // The last selection of more than one row. A checkbox click collapses the grid's selection
+    // to the clicked row before the toggle fires, so the group is remembered here and the
+    // click on one of its rows toggles all of them — the same as Space.
+    private List<DataGridViewRow> _multiSelection = [];
+
     /// <param name="title">The window title, e.g. "Export variables".</param>
     /// <param name="direction">Whether the entries travel to a file or into the workspace.</param>
     /// <param name="entries">The entries to review, in display order.</param>
@@ -50,8 +55,8 @@ internal sealed partial class VariableFileForm : Form
             ? "Choose the variables to write to the file."
             : "Choose the variables to merge into the workspace.";
         hintLabel.Text = direction == VariableFileDirection.Export
-            ? "Every variable starts selected; clear the ones the file should not carry."
-            : "Rows listed as Overwrites start unselected. Invalid and machine entries cannot be selected.";
+            ? "Every variable starts selected; clear the ones the file should not carry. Space or a checkbox click toggles all selected rows, Delete clears them."
+            : "Rows listed as Overwrites start unselected. Invalid and machine entries cannot be selected. Space or a checkbox click toggles all selected rows, Delete clears them.";
         statusColumn.Visible = direction == VariableFileDirection.Import;
         currentValueColumn.Visible = direction == VariableFileDirection.Import;
 
@@ -60,6 +65,35 @@ internal sealed partial class VariableFileForm : Form
         GridStyleHelper.ApplyGridTheme(entriesGrid);
         entriesGrid.CurrentCellDirtyStateChanged += GridCurrentCellDirtyStateChanged;
         entriesGrid.CellValueChanged += GridCellValueChanged;
+
+        // The review grid gets the same filter behaviour as the main grids: hide rows whose
+        // name and value do not contain the text, Esc clears. Checkbox states are untouched.
+        filterTextBox.TextChanged += (_, _) => ApplyFilter();
+        filterTextBox.KeyDown += (_, e) =>
+        {
+            if (e.KeyCode == Keys.Escape)
+            {
+                filterTextBox.Clear();
+                e.SuppressKeyPress = true;
+            }
+        };
+
+        // Multi-select bulk keys: Space toggles every selected row's checkbox (to the opposite
+        // of the focused row's), Delete unchecks them. A single selected row keeps the checkbox
+        // cell's native Space handling. Entries that cannot be selected are skipped.
+        entriesGrid.KeyDown += GridKeyDown;
+
+        // Remember every multi-selection; a click on any other cell forgets the group.
+        entriesGrid.SelectionChanged += (_, _) =>
+        {
+            if (entriesGrid.SelectedRows.Count > 1)
+                _multiSelection = entriesGrid.SelectedRows.Cast<DataGridViewRow>().ToList();
+        };
+        entriesGrid.CellMouseDown += (_, e) =>
+        {
+            if (e.ColumnIndex != selectedColumn.Index || !_multiSelection.Any(r => r.Index == e.RowIndex))
+                _multiSelection = [];
+        };
 
         FillGrid();
         UpdateAcceptState();
@@ -161,12 +195,110 @@ internal sealed partial class VariableFileForm : Form
     }
 
     /// <summary>
-    /// Keeps the footer count and the accept button in step with the checked rows.
+    /// Keeps the footer count and the accept button in step with the checked rows. A checkbox
+    /// click on a row of the remembered multi-selection toggles the whole group, not just the
+    /// clicked cell.
     /// </summary>
     private void GridCellValueChanged(object? sender, DataGridViewCellEventArgs e)
     {
-        if (!_updatingSelection && e.RowIndex >= 0 && e.ColumnIndex == selectedColumn.Index)
+        if (_updatingSelection || e.RowIndex < 0 || e.ColumnIndex != selectedColumn.Index)
+            return;
+
+        UpdateAcceptState();
+
+        if (_multiSelection.Count > 1
+            && _multiSelection.Any(r => r.Index == e.RowIndex)
+            && entriesGrid.Rows[e.RowIndex].Cells[e.ColumnIndex].Value is bool newValue)
+        {
+            _updatingSelection = true;
+
+            try
+            {
+                foreach (var row in _multiSelection)
+                {
+                    if (row.Index != e.RowIndex
+                        && row.Tag is VariableFileEntry entry
+                        && IsSelectable(entry))
+                    {
+                        row.Cells[selectedColumn.Index].Value = newValue;
+                        row.Selected = true; // the click collapsed the selection; keep the group
+                    }
+                }
+            }
+            finally
+            {
+                _updatingSelection = false;
+            }
+
+            _multiSelection = [];
             UpdateAcceptState();
+        }
+    }
+
+    /// <summary>
+    /// Applies the bulk selection keys to all selected rows at once: Space sets them to the
+    /// opposite of the focused row's checkbox, Delete clears them.
+    /// </summary>
+    private void GridKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (entriesGrid.IsCurrentCellInEditMode)
+            return;
+
+        var selected = entriesGrid.SelectedRows.Cast<DataGridViewRow>().ToList();
+
+        if (selected.Count == 0)
+            return;
+
+        bool? target = e.KeyCode switch
+        {
+            Keys.Space when selected.Count > 1 => !(entriesGrid.CurrentRow?.Cells[selectedColumn.Index].Value is true),
+            Keys.Delete => false,
+            _ => null,
+        };
+
+        if (target is not { } value)
+            return;
+
+        e.SuppressKeyPress = true;
+        entriesGrid.EndEdit();
+
+        _updatingSelection = true;
+
+        try
+        {
+            foreach (var row in selected)
+            {
+                if (row.Tag is VariableFileEntry entry && IsSelectable(entry))
+                    row.Cells[selectedColumn.Index].Value = value;
+            }
+        }
+        finally
+        {
+            _updatingSelection = false;
+        }
+
+        UpdateAcceptState();
+    }
+
+    /// <summary>
+    /// Hides the rows whose name and value do not contain the filter text (case-insensitive).
+    /// Only visibility changes; the entries and their checkbox states stay as they are, so a
+    /// filtered-out row can still be selected by "Select all".
+    /// </summary>
+    private void ApplyFilter()
+    {
+        var text = filterTextBox.Text.Trim();
+
+        foreach (DataGridViewRow row in entriesGrid.Rows)
+        {
+            row.Visible = row.Tag is not VariableFileEntry entry
+                || text.Length == 0
+                || entry.Name.Contains(text, StringComparison.OrdinalIgnoreCase)
+                || entry.Value.Contains(text, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // The footer carries the match count while a filter is active, like the main grids.
+        UpdateAcceptState();
     }
 
     /// <summary>
@@ -215,11 +347,24 @@ internal sealed partial class VariableFileForm : Form
 
         var selectable = _entries.Count(IsSelectable);
 
-        selectionLabel.Text = selectable == 0
+        var count = selectable == 0
             ? "No entries can be selected."
             : selected == 0
                 ? "Select at least one variable."
                 : $"{selected} of {selectable} selected";
+
+        // While a filter is active the footer leads with the match count, like the main grids'
+        // filter row ("N of M shown", "No matches").
+        if (filterTextBox.Text.Trim().Length > 0)
+        {
+            var visible = entriesGrid.Rows.Cast<DataGridViewRow>().Count(row => row.Visible);
+
+            count = visible == 0
+                ? "No matches"
+                : $"{visible} of {entriesGrid.Rows.Count} shown · {count}";
+        }
+
+        selectionLabel.Text = count;
 
         acceptButton.Enabled = selected > 0;
         selectAllButton.Enabled = selected < selectable;

@@ -40,18 +40,25 @@ internal static class RowActionHelper
     }
 
     /// <summary>
-    /// Removes the grid's current row, through the scope so state tracking stays intact.
+    /// Removes the grid's selected rows, through the scope so state tracking stays intact.
+    /// A bulk delete is wrapped in one undo batch, so it is a single undo step like an import.
     /// </summary>
-    /// <param name="grid">The grid that holds the row and determines the scope.</param>
+    /// <param name="grid">The grid that holds the rows and determines the scope.</param>
     /// <param name="envService">The store that owns the scopes.</param>
-    public static void Delete(DataGridView grid, IEnvService envService)
+    /// <param name="undoHistory">The history the batch is opened on.</param>
+    public static void Delete(DataGridView grid, IEnvService envService, IUndoHistory undoHistory)
     {
         if (ControlHelper.GetTabType(grid) is not { } scope || !AdminChecker.ValidateTab(grid))
             return;
 
-        var model = ControlHelper.GetCurrentModel(grid);
+        var models = ControlHelper.GetSelectedModels(grid);
 
-        if (model is not null)
+        if (models.Count == 0)
+            return;
+
+        using var batch = undoHistory.BeginBatch();
+
+        foreach (var model in models)
             envService.GetScope(scope).Delete(model);
     }
 }
